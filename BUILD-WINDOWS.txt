@@ -1,0 +1,12 @@
+ELAK İZİN TAKİP APK OLUŞTURMA
+
+1) Android Studio'yu açın.
+2) Open ile proje klasörünü seçin.
+3) Gradle Sync tamamlanınca:
+   Build > Build App Bundle(s) / APK(s) > Build APK(s)
+4) APK burada oluşur:
+   app\build\outputs\apk\debug\app-debug.apk
+
+Gerçek dağıtım için:
+Build > Generate Signed App Bundle / APK > APK
+ve kendi keystore dosyanızla imzalayın.

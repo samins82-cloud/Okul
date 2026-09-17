@@ -1,0 +1,37 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'com.elak.izintakip'
+    compileSdk 35
+
+    defaultConfig {
+        applicationId "com.elak.izintakip"
+        minSdk 24
+        targetSdk 35
+        versionCode 100
+        versionName "1.0.0"
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    buildTypes {
+        debug {
+            minifyEnabled false
+        }
+        release {
+            minifyEnabled true
+            shrinkResources true
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+    }
+}
+
+
+dependencies {
+    implementation 'androidx.core:core:1.15.0'
+}
