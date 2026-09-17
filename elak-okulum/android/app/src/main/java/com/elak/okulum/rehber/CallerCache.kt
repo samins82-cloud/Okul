@@ -17,9 +17,19 @@ class CallerCache(context: Context) : SQLiteOpenHelper(context.applicationContex
         val extraCount: Int
     )
 
+    data class DirectoryEntry(
+        val studentName: String,
+        val schoolNo: String,
+        val className: String,
+        val guardianName: String,
+        val relationship: String,
+        val phoneKey: String
+    )
+
     override fun onCreate(db: SQLiteDatabase) {
         db.execSQL("CREATE TABLE callers(id INTEGER PRIMARY KEY AUTOINCREMENT, phone_key TEXT NOT NULL, guardian_name TEXT NOT NULL DEFAULT '', relationship TEXT NOT NULL DEFAULT '', student_name TEXT NOT NULL DEFAULT '', school_no TEXT NOT NULL DEFAULT '', class_name TEXT NOT NULL DEFAULT '')")
         db.execSQL("CREATE INDEX idx_callers_phone_key ON callers(phone_key)")
+        db.execSQL("CREATE INDEX idx_callers_class_name ON callers(class_name)")
     }
 
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) = Unit
@@ -69,6 +79,43 @@ class CallerCache(context: Context) : SQLiteOpenHelper(context.applicationContex
     }
 
     fun count(): Int = readableDatabase.rawQuery("SELECT COUNT(*) FROM callers", null).use { c -> if (c.moveToFirst()) c.getInt(0) else 0 }
+
+    fun listClasses(): List<String> {
+        val out = ArrayList<String>()
+        readableDatabase.rawQuery("SELECT DISTINCT class_name FROM callers WHERE class_name<>'' ORDER BY class_name", null).use { c ->
+            while (c.moveToNext()) out.add(c.getString(0).orEmpty())
+        }
+        return out
+    }
+
+    fun listEntries(guardianMode: Boolean, query: String, classFilter: String): List<DirectoryEntry> {
+        val raw = ArrayList<DirectoryEntry>()
+        readableDatabase.rawQuery(
+            "SELECT student_name,school_no,class_name,guardian_name,relationship,phone_key FROM callers ORDER BY class_name,student_name,guardian_name",
+            null
+        ).use { c ->
+            while (c.moveToNext()) {
+                raw.add(DirectoryEntry(
+                    c.getString(0).orEmpty(), c.getString(1).orEmpty(), c.getString(2).orEmpty(),
+                    c.getString(3).orEmpty(), c.getString(4).orEmpty(), c.getString(5).orEmpty()
+                ))
+            }
+        }
+        val locale = java.util.Locale.forLanguageTag("tr-TR")
+        val q = query.trim().lowercase(locale)
+        val filtered = raw.filter { e ->
+            (classFilter.isBlank() || e.className == classFilter) &&
+                (q.isBlank() || listOf(e.studentName, e.schoolNo, e.className, e.guardianName, e.relationship, e.phoneKey)
+                    .any { it.lowercase(locale).contains(q) })
+        }
+        if (guardianMode) {
+            return filtered.filter { it.relationship.lowercase(locale).let { r -> r != "öğrenci" && r != "ogrenci" } }
+                .distinctBy { "${it.phoneKey}|${it.guardianName}|${it.studentName}" }
+        }
+        return filtered.groupBy { "${it.schoolNo}|${it.studentName}|${it.className}" }.values.map { rows ->
+            rows.firstOrNull { it.relationship.lowercase(locale).let { r -> r == "öğrenci" || r == "ogrenci" } } ?: rows.first()
+        }.sortedWith(compareBy<DirectoryEntry> { it.className }.thenBy { it.studentName })
+    }
 
     private fun flatten(payload: JSONObject): List<JSONObject> {
         val out = ArrayList<JSONObject>()
