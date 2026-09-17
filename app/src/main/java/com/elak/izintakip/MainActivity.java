@@ -35,12 +35,15 @@ import androidx.core.content.FileProvider;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
 
 public class MainActivity extends Activity {
 
-    private static final String START_URL = "https://mcoaihl.com/izin/?apk=1";
-    private static final String FALLBACK_URL = "https://www.mcoaihl.com/izin/?apk=1";
+    private static final String START_URL = "https://www.mcoaihl.com/izin/index.php";
+    private static final String ALT_URL = "https://mcoaihl.com/izin/index.php";
     private static final String INTERNAL_HOST = "mcoaihl.com";
+    private static final String MOBILE_UA = "Mozilla/5.0 (Linux; Android 14; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Mobile Safari/537.36";
     private static final int FILE_CHOOSER_REQUEST = 1001;
     private static final int STORAGE_PERMISSION_REQUEST = 1002;
 
@@ -50,8 +53,8 @@ public class MainActivity extends Activity {
     private Uri cameraImageUri;
     private final Handler handler = new Handler(Looper.getMainLooper());
 
-    private boolean fallbackHostTried = false;
-    private boolean blankReloadTried = false;
+    private boolean alternateHostTried = false;
+    private boolean currentHostReloadTried = false;
     private boolean showingLocalError = false;
 
     private String pendingDownloadUrl;
@@ -72,7 +75,10 @@ public class MainActivity extends Activity {
 
         if (savedInstanceState == null) {
             Uri deepLink = getIntent() != null ? getIntent().getData() : null;
-            loadMainUrl(deepLink != null ? deepLink.toString() : START_URL);
+            String initialUrl = deepLink != null && isInternalUrl(deepLink.toString())
+                    ? normalizeInternalUrl(deepLink.toString())
+                    : START_URL;
+            loadMainUrl(initialUrl, true);
         } else {
             webView.restoreState(savedInstanceState);
         }
@@ -95,16 +101,18 @@ public class MainActivity extends Activity {
         settings.setSupportMultipleWindows(false);
         settings.setCacheMode(WebSettings.LOAD_DEFAULT);
         settings.setTextZoom(100);
+        settings.setDefaultTextEncodingName("UTF-8");
         settings.setMixedContentMode(WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE);
+        settings.setUserAgentString(MOBILE_UA);
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            settings.setSafeBrowsingEnabled(true);
+        }
 
         CookieManager cookies = CookieManager.getInstance();
         cookies.setAcceptCookie(true);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
             cookies.setAcceptThirdPartyCookies(webView, true);
-        }
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
-            WebView.setWebContentsDebuggingEnabled(BuildConfig.DEBUG);
         }
 
         webView.setWebViewClient(new WebViewClient() {
@@ -130,7 +138,7 @@ public class MainActivity extends Activity {
                 CookieManager.getInstance().flush();
                 progressBar.setVisibility(ProgressBar.GONE);
                 if (!showingLocalError && isInternalUrl(url)) {
-                    scheduleBlankPageCheck(url);
+                    scheduleRealBlankCheck(url);
                 }
             }
 
@@ -156,12 +164,10 @@ public class MainActivity extends Activity {
             public void onReceivedSslError(WebView view, SslErrorHandler sslHandler, SslError error) {
                 sslHandler.cancel();
                 String failingUrl = error != null && error.getUrl() != null ? error.getUrl() : START_URL;
-                if (tryFallbackHost(failingUrl)) {
-                    return;
-                }
+                if (tryAlternateHost(failingUrl)) return;
                 showLocalError(
                         "Güvenli bağlantı kurulamadı",
-                        "Sunucunun SSL sertifikası Android WebView tarafından doğrulanamadı. Sertifika doğrulaması güvenlik nedeniyle atlanmadı.",
+                        "Sunucunun SSL sertifikası Android tarafından doğrulanamadı. Sertifika kontrolü güvenlik nedeniyle kapatılmadı.",
                         failingUrl
                 );
             }
@@ -170,7 +176,7 @@ public class MainActivity extends Activity {
             public boolean onRenderProcessGone(WebView view, RenderProcessGoneDetail detail) {
                 showLocalError(
                         "Android WebView yeniden başlatılmalı",
-                        "Sayfayı gösteren Android WebView işlemi kapandı. Uygulamayı kapatıp yeniden açın; sorun sürerse Android System WebView / Chrome uygulamasını güncelleyin.",
+                        "Android System WebView işlemi kapandı. Uygulamayı kapatıp yeniden açın; sorun sürerse Android System WebView ve Chrome'u güncelleyin.",
                         START_URL
                 );
                 return true;
@@ -200,9 +206,29 @@ public class MainActivity extends Activity {
         });
     }
 
-    private void loadMainUrl(String url) {
+    private String normalizeInternalUrl(String url) {
+        try {
+            Uri uri = Uri.parse(url);
+            String path = uri.getPath() == null ? "" : uri.getPath();
+            if (path.equals("/izin") || path.equals("/izin/")) {
+                Uri.Builder builder = uri.buildUpon().path("/izin/index.php");
+                return builder.build().toString();
+            }
+        } catch (Exception ignored) {}
+        return url;
+    }
+
+    private void loadMainUrl(String url, boolean resetAttempts) {
         showingLocalError = false;
-        webView.loadUrl(url);
+        if (resetAttempts) {
+            currentHostReloadTried = false;
+            alternateHostTried = false;
+        }
+
+        Map<String, String> headers = new HashMap<>();
+        headers.put("Accept-Language", "tr-TR,tr;q=0.9,en-US;q=0.8,en;q=0.7");
+        headers.put("Cache-Control", "no-cache");
+        webView.loadUrl(normalizeInternalUrl(url), headers);
     }
 
     private boolean isInternalUrl(String url) {
@@ -215,68 +241,82 @@ public class MainActivity extends Activity {
         }
     }
 
-    private boolean isPrimaryHost(String url) {
+    private boolean isWwwHost(String url) {
         try {
             Uri uri = Uri.parse(url);
-            return INTERNAL_HOST.equalsIgnoreCase(uri.getHost());
+            return "www.mcoaihl.com".equalsIgnoreCase(uri.getHost());
         } catch (Exception e) {
             return false;
         }
     }
 
-    private boolean tryFallbackHost(String failingUrl) {
-        if (!fallbackHostTried && isPrimaryHost(failingUrl)) {
-            fallbackHostTried = true;
-            blankReloadTried = false;
-            Toast.makeText(this, "Alternatif güvenli adres deneniyor…", Toast.LENGTH_SHORT).show();
-            loadMainUrl(FALLBACK_URL);
-            return true;
-        }
-        return false;
+    private boolean tryAlternateHost(String failingUrl) {
+        if (alternateHostTried) return false;
+        alternateHostTried = true;
+        currentHostReloadTried = false;
+        String target = isWwwHost(failingUrl) ? ALT_URL : START_URL;
+        Toast.makeText(this, "Alternatif okul adresi deneniyor…", Toast.LENGTH_SHORT).show();
+        loadMainUrl(target, false);
+        return true;
     }
 
     private void handleMainFrameFailure(String failingUrl, String title, String detail) {
-        if (tryFallbackHost(failingUrl)) {
-            return;
-        }
+        if (tryAlternateHost(failingUrl)) return;
         showLocalError(title, detail, failingUrl);
     }
 
-    private void scheduleBlankPageCheck(final String url) {
+    private void scheduleRealBlankCheck(final String url) {
         handler.postDelayed(() -> {
             if (isFinishing() || showingLocalError || webView == null) return;
+
             webView.evaluateJavascript(
-                    "(function(){try{var b=document.body; if(!b)return 0; var t=(b.innerText||'').replace(/\\s+/g,'').length; var h=(document.documentElement&&document.documentElement.innerHTML?document.documentElement.innerHTML.length:0); return t+h;}catch(e){return -1;}})();",
+                    "(function(){try{return JSON.stringify({html:(document.documentElement&&document.documentElement.outerHTML?document.documentElement.outerHTML.length:0),body:(document.body&&document.body.innerHTML?document.body.innerHTML.length:0),title:(document.title||''),ready:document.readyState});}catch(e){return JSON.stringify({html:-1,body:-1,title:'',ready:'error'});}})();",
                     value -> {
                         if (showingLocalError || value == null) return;
-                        int score = 0;
-                        try {
-                            String cleaned = value.replace("\"", "").trim();
-                            score = (int) Double.parseDouble(cleaned);
-                        } catch (Exception ignored) {
-                            return;
+
+                        String decoded = value.replace("\\\"", "\"");
+                        if (decoded.startsWith("\"") && decoded.endsWith("\"")) {
+                            decoded = decoded.substring(1, decoded.length() - 1);
                         }
 
-                        if (score > 80 || score < 0) return;
+                        int htmlLen = extractJsonInt(decoded, "html");
+                        int bodyLen = extractJsonInt(decoded, "body");
 
-                        if (!blankReloadTried) {
-                            blankReloadTried = true;
+                        // Gerçek HTML varsa ekrana müdahale etme. Önceki sürümdeki yanlış boş-sayfa tespiti kaldırıldı.
+                        if (htmlLen >= 200 || bodyLen >= 80 || htmlLen < 0) return;
+
+                        if (!currentHostReloadTried) {
+                            currentHostReloadTried = true;
                             webView.clearCache(true);
-                            String separator = url.contains("?") ? "&" : "?";
-                            loadMainUrl(url + separator + "apk_reload=" + System.currentTimeMillis());
+                            Toast.makeText(this, "Sayfa yeniden yükleniyor…", Toast.LENGTH_SHORT).show();
+                            loadMainUrl(url, false);
                             return;
                         }
 
-                        if (tryFallbackHost(url)) return;
+                        if (tryAlternateHost(url)) return;
 
                         showLocalError(
-                                "Sayfa boş geldi",
-                                "Sunucu yanıt verdi ancak Android WebView görüntülenecek içerik oluşturamadı. Android System WebView / Chrome sürümünü güncelleyin. Aşağıdaki adresi telefon tarayıcısında da kontrol edin.",
+                                "Sunucudan boş içerik geldi",
+                                "Sunucu bağlantıyı kabul etti ancak HTML içeriği boş döndü. Telefon tarayıcısında çalışan aynı adresi açmak için aşağıdaki Tarayıcıda Aç düğmesini kullanabilirsiniz.",
                                 url
                         );
                     }
             );
-        }, 3500);
+        }, 4500);
+    }
+
+    private int extractJsonInt(String json, String key) {
+        try {
+            String token = "\"" + key + "\":";
+            int start = json.indexOf(token);
+            if (start < 0) return -1;
+            start += token.length();
+            int end = start;
+            while (end < json.length() && (Character.isDigit(json.charAt(end)) || json.charAt(end) == '-')) end++;
+            return Integer.parseInt(json.substring(start, end));
+        } catch (Exception ignored) {
+            return -1;
+        }
     }
 
     private void showLocalError(String title, String detail, String url) {
@@ -295,15 +335,16 @@ public class MainActivity extends Activity {
                 + ".icon{width:56px;height:56px;border-radius:18px;background:#e8f1ff;color:#1769e0;display:grid;place-items:center;font-size:29px;font-weight:bold}"
                 + "h1{font-size:22px;margin:16px 0 8px}p{font-size:14px;line-height:1.55;color:#566a84}"
                 + ".url{font-size:11px;background:#f6f8fb;border:1px solid #e1e8f0;border-radius:10px;padding:10px;word-break:break-all;color:#50627a}"
-                + ".btn{display:block;text-align:center;text-decoration:none;background:#1769e0;color:#fff;padding:13px 15px;border-radius:12px;font-weight:bold;margin-top:16px}"
-                + ".small{font-size:12px;color:#7a899d;margin-top:12px}</style></head><body><div class='wrap'><div class='card'>"
+                + ".btn{display:block;text-align:center;text-decoration:none;background:#1769e0;color:#fff;padding:13px 15px;border-radius:12px;font-weight:bold;margin-top:12px}"
+                + ".btn2{background:#0f766e}.small{font-size:12px;color:#7a899d;margin-top:12px}</style></head><body><div class='wrap'><div class='card'>"
                 + "<div class='icon'>!</div><h1>" + safeTitle + "</h1><p>" + safeDetail + "</p>"
                 + "<div class='url'>" + safeUrl + "</div>"
-                + "<a class='btn' href='" + safeUrl + "'>Tekrar Dene</a>"
-                + "<div class='small'>ELAK İzin Takip Android · v1.0.1</div>"
+                + "<a class='btn' href='elak://retry'>Tekrar Dene</a>"
+                + "<a class='btn btn2' href='elak://browser'>Tarayıcıda Aç</a>"
+                + "<div class='small'>ELAK İzin Takip Android · v1.0.2</div>"
                 + "</div></div></body></html>";
 
-        webView.loadDataWithBaseURL("https://mcoaihl.com/", html, "text/html", "UTF-8", null);
+        webView.loadDataWithBaseURL("https://www.mcoaihl.com/", html, "text/html", "UTF-8", null);
     }
 
     private String htmlEscape(String value) {
@@ -317,6 +358,19 @@ public class MainActivity extends Activity {
 
     private boolean handleNavigation(String url) {
         if (url == null || url.trim().isEmpty()) return false;
+
+        if (url.startsWith("elak://retry")) {
+            loadMainUrl(START_URL, true);
+            return true;
+        }
+        if (url.startsWith("elak://browser")) {
+            try {
+                startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(START_URL)));
+            } catch (Exception e) {
+                Toast.makeText(this, "Telefon tarayıcısı açılamadı.", Toast.LENGTH_SHORT).show();
+            }
+            return true;
+        }
 
         try {
             Uri uri = Uri.parse(url);
@@ -430,7 +484,7 @@ public class MainActivity extends Activity {
 
             String cookie = CookieManager.getInstance().getCookie(url);
             if (cookie != null) request.addRequestHeader("Cookie", cookie);
-            if (userAgent != null) request.addRequestHeader("User-Agent", userAgent);
+            request.addRequestHeader("User-Agent", MOBILE_UA);
             if (mimeType != null && !mimeType.isEmpty()) request.setMimeType(mimeType);
 
             DownloadManager manager = (DownloadManager) getSystemService(Context.DOWNLOAD_SERVICE);
@@ -485,12 +539,8 @@ public class MainActivity extends Activity {
 
     @Override
     public void onBackPressed() {
-        if (webView != null && webView.canGoBack() && !showingLocalError) {
+        if (webView != null && webView.canGoBack()) {
             webView.goBack();
-        } else if (showingLocalError) {
-            fallbackHostTried = false;
-            blankReloadTried = false;
-            loadMainUrl(START_URL);
         } else {
             moveTaskToBack(true);
         }
@@ -507,7 +557,9 @@ public class MainActivity extends Activity {
         super.onNewIntent(intent);
         setIntent(intent);
         Uri uri = intent.getData();
-        if (uri != null && webView != null) loadMainUrl(uri.toString());
+        if (uri != null && webView != null && isInternalUrl(uri.toString())) {
+            loadMainUrl(uri.toString(), true);
+        }
     }
 
     @Override
