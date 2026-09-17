@@ -1,7 +1,6 @@
 package com.elak.okulum
 
 import android.Manifest
-import android.app.Activity
 import android.app.DownloadManager
 import android.content.Context
 import android.content.Intent
@@ -39,7 +38,7 @@ import java.util.Locale
 
 class MainActivity : AppCompatActivity() {
     companion object {
-        private const val BASE_URL = "https://elak.mcoaihl.com/okulum/"
+        private const val BASE_URL = "https://elak.mcoaihl.com/"
         private val INTERNAL_HOSTS = setOf(
             "elak.mcoaihl.com",
             "mcoaihl.com",
@@ -136,28 +135,9 @@ class MainActivity : AppCompatActivity() {
             })
         }
 
-        root.addView(
-            webView,
-            FrameLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                ViewGroup.LayoutParams.MATCH_PARENT
-            )
-        )
-        root.addView(
-            progressBar,
-            FrameLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                8,
-                Gravity.TOP
-            )
-        )
-        root.addView(
-            errorPanel,
-            FrameLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                ViewGroup.LayoutParams.MATCH_PARENT
-            )
-        )
+        root.addView(webView, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
+        root.addView(progressBar, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 8, Gravity.TOP))
+        root.addView(errorPanel, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
         setContentView(root)
     }
 
@@ -167,9 +147,7 @@ class MainActivity : AppCompatActivity() {
         controller.isAppearanceLightNavigationBars = true
 
         ViewCompat.setOnApplyWindowInsetsListener(root) { view, insets ->
-            val bars = insets.getInsets(
-                WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout()
-            )
+            val bars = insets.getInsets(WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout())
             view.setPadding(bars.left, bars.top, bars.right, bars.bottom)
             insets
         }
@@ -192,7 +170,7 @@ class MainActivity : AppCompatActivity() {
             textZoom = 100
             cacheMode = WebSettings.LOAD_DEFAULT
             mediaPlaybackRequiresUserGesture = true
-            userAgentString = "$userAgentString ELAK-Okulum/0.5.0 tr-TR"
+            userAgentString = "$userAgentString ELAK-Okulum/0.5.2 tr-TR"
         }
 
         webView.webChromeClient = object : WebChromeClient() {
@@ -233,11 +211,8 @@ class MainActivity : AppCompatActivity() {
                 if ((scheme == "http" || scheme == "https") && host in INTERNAL_HOSTS) return false
 
                 return try {
-                    val intent = if (scheme == "intent") {
-                        Intent.parseUri(uri.toString(), Intent.URI_INTENT_SCHEME)
-                    } else {
-                        Intent(Intent.ACTION_VIEW, uri)
-                    }
+                    val intent = if (scheme == "intent") Intent.parseUri(uri.toString(), Intent.URI_INTENT_SCHEME)
+                    else Intent(Intent.ACTION_VIEW, uri)
                     startActivity(intent)
                     true
                 } catch (_: Exception) {
@@ -253,11 +228,7 @@ class MainActivity : AppCompatActivity() {
                 CookieManager.getInstance().flush()
             }
 
-            override fun onReceivedError(
-                view: WebView?,
-                request: WebResourceRequest?,
-                error: WebResourceError?
-            ) {
+            override fun onReceivedError(view: WebView?, request: WebResourceRequest?, error: WebResourceError?) {
                 if (request?.isForMainFrame == true) showError()
             }
         }
@@ -311,10 +282,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun loadHome() {
-        webView.loadUrl(
-            BASE_URL,
-            mapOf("Accept-Language" to "tr-TR,tr;q=0.9,en;q=0.6")
-        )
+        webView.loadUrl(BASE_URL, mapOf("Accept-Language" to "tr-TR,tr;q=0.9,en;q=0.6"))
     }
 
     private fun showError() {
