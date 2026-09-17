@@ -38,7 +38,7 @@ import java.util.Locale
 
 class MainActivity : AppCompatActivity() {
     companion object {
-        private const val BASE_URL = "https://elak.mcoaihl.com/"
+        private const val BASE_URL = "https://elak.mcoaihl.com/okulum/"
         private val INTERNAL_HOSTS = setOf(
             "elak.mcoaihl.com",
             "mcoaihl.com",
@@ -170,7 +170,7 @@ class MainActivity : AppCompatActivity() {
             textZoom = 100
             cacheMode = WebSettings.LOAD_DEFAULT
             mediaPlaybackRequiresUserGesture = true
-            userAgentString = "$userAgentString ELAK-Okulum/0.5.2 tr-TR"
+            userAgentString = "$userAgentString ELAK-Okulum/0.5.3 tr-TR"
         }
 
         webView.webChromeClient = object : WebChromeClient() {
