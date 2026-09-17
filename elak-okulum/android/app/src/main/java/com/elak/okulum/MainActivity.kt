@@ -34,12 +34,8 @@ class MainActivity : AppCompatActivity() {
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-
-        // Türkçe yerel ayarı: WebView/PHP tarih-sayı gösterimlerinde tutarlılık sağlar.
         Locale.setDefault(Locale.forLanguageTag("tr-TR"))
 
-        // Android 15+ edge-to-edge davranışında içeriğin saat, kamera deliği ve
-        // alt gezinme çubuğunun altında kalmaması için sistem boşluklarını biz yönetiyoruz.
         WindowCompat.setDecorFitsSystemWindows(window, false)
         window.statusBarColor = Color.rgb(8, 26, 56)
         window.navigationBarColor = Color.WHITE
@@ -74,7 +70,7 @@ class MainActivity : AppCompatActivity() {
             defaultTextEncodingName = "UTF-8"
             textZoom = 100
             cacheMode = WebSettings.LOAD_DEFAULT
-            userAgentString = "$userAgentString ELAK-Okulum/0.4.1 tr-TR"
+            userAgentString = "$userAgentString ELAK-Okulum/0.4.2 tr-TR"
         }
 
         webView.webChromeClient = WebChromeClient()
