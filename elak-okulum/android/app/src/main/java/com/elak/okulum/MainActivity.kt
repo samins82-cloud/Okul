@@ -34,6 +34,7 @@ import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
+import com.elak.okulum.rehber.RehberActivity
 import java.util.Locale
 
 class MainActivity : AppCompatActivity() {
@@ -170,7 +171,7 @@ class MainActivity : AppCompatActivity() {
             textZoom = 100
             cacheMode = WebSettings.LOAD_DEFAULT
             mediaPlaybackRequiresUserGesture = true
-            userAgentString = "$userAgentString ELAK-Okulum/0.5.3 tr-TR"
+            userAgentString = "$userAgentString ELAK-Okulum/0.6.0 tr-TR"
         }
 
         webView.webChromeClient = object : WebChromeClient() {
@@ -207,6 +208,11 @@ class MainActivity : AppCompatActivity() {
                 val uri = request?.url ?: return false
                 val scheme = uri.scheme?.lowercase().orEmpty()
                 val host = uri.host?.lowercase().orEmpty()
+
+                if ((scheme == "http" || scheme == "https") && host == "elak.mcoaihl.com" && uri.path.orEmpty().startsWith("/rehber")) {
+                    startActivity(Intent(this@MainActivity, RehberActivity::class.java))
+                    return true
+                }
 
                 if ((scheme == "http" || scheme == "https") && host in INTERNAL_HOSTS) return false
 
