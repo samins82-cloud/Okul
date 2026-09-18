@@ -108,6 +108,10 @@ class MainActivity : AppCompatActivity() {
         fun okulumLogin(username: String?, password: String?) {
             val u = username.orEmpty().trim(); val p = password.orEmpty()
             if (u.isBlank() || p.isBlank()) return
+
+            // ELAK Okulum'daki tek giriş hesabını modüller için Android Keystore ile şifreli sakla.
+            OkulumSession(this@MainActivity).saveCredentials(u, p)
+
             thread {
                 try {
                     val login = RehberApi.login(u, p)
@@ -131,7 +135,7 @@ class MainActivity : AppCompatActivity() {
             allowFileAccess = false; allowContentAccess = true; loadsImagesAutomatically = true
             defaultTextEncodingName = "UTF-8"; textZoom = 100; cacheMode = WebSettings.LOAD_DEFAULT
             mediaPlaybackRequiresUserGesture = true
-            userAgentString = "$userAgentString ELAK-Okulum/0.8.7 tr-TR"
+            userAgentString = "$userAgentString ELAK-Okulum/0.8.8 tr-TR"
         }
         webView.webChromeClient = object : WebChromeClient() {
             override fun onProgressChanged(view: WebView?, newProgress: Int) { progressBar.progress = newProgress; progressBar.visibility = if (newProgress in 1..99) View.VISIBLE else View.GONE }
