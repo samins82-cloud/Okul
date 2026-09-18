@@ -47,14 +47,17 @@ a = re.sub(r'setting\(body,\s*"Sürüm",\s*"v0\.8\.\d+"\)', 'setting(body,"Sür�
 activity.write_text(a, encoding="utf-8")
 
 # Put the WhatsApp icon beside the full-width incoming-call action as well.
-i = incoming.read_text(encoding="utf-8")n = None
+i = incoming.read_text(encoding="utf-8")
 old = '            text = "WhatsApp\'tan Yaz"\n            textSize = 14f'
 new = '            text = "WhatsApp\'tan Yaz"\n            setCompoundDrawablesWithIntrinsicBounds(R.drawable.ic_whatsapp, 0, 0, 0)\n            compoundDrawablePadding = dp(8)\n            textSize = 14f'
 if old in i:
     i = i.replace(old, new, 1)
 else:
-    # tolerate compact formatting variants
-    i = i.replace('text = "WhatsApp\'tan Yaz"', 'text = "WhatsApp\'tan Yaz"\n            setCompoundDrawablesWithIntrinsicBounds(R.drawable.ic_whatsapp, 0, 0, 0)\n            compoundDrawablePadding = dp(8)', 1)
+    i = i.replace(
+        'text = "WhatsApp\'tan Yaz"',
+        'text = "WhatsApp\'tan Yaz"\n            setCompoundDrawablesWithIntrinsicBounds(R.drawable.ic_whatsapp, 0, 0, 0)\n            compoundDrawablePadding = dp(8)',
+        1
+    )
 incoming.write_text(i, encoding="utf-8")
 
 # Keep network user-agents aligned with the app version.
