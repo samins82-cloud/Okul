@@ -17,7 +17,11 @@ class CallerIdService : CallScreeningService() {
 
         val phone = callDetails.handle?.schemeSpecificPart.orEmpty()
         if (phone.isBlank()) return
-        val match = CallerCache(this).lookup(phone) ?: return
+        val cache = CallerCache(this)
+        val match = cache.lookup(phone)
+        cache.addHistory(phone, match, "Gelen Arama")
+        if (match == null) return
+
         CallerOverlay.show(this, match)
         try {
             startActivity(Intent(this, IncomingCallerActivity::class.java).apply {
@@ -27,6 +31,9 @@ class CallerIdService : CallScreeningService() {
                 putExtra("student", match.studentName)
                 putExtra("school_no", match.schoolNo)
                 putExtra("class_name", match.className)
+                putExtra("student_id", match.studentId)
+                putExtra("has_photo", match.hasPhoto)
+                putExtra("photo_version", match.photoVersion)
                 putExtra("phone", phone)
                 putExtra("extra", match.extraCount)
             })
