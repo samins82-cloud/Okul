@@ -1,6 +1,8 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="28" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
 
     <application
         android:theme="@style/Theme.ELAKOkulum"
@@ -13,6 +15,7 @@
             android:name=".rehber.IncomingCallerActivity"
             android:exported="false"
             android:excludeFromRecents="true"
+            android:launchMode="singleTop"
             android:showWhenLocked="true"
             android:turnScreenOn="true" />
 
@@ -23,6 +26,11 @@
         <activity
             android:name=".rehber.RehberActivity81"
             android:exported="false" />
+
+        <activity
+            android:name=".rehber.RehberActivity82"
+            android:exported="false"
+            android:launchMode="singleTop" />
 
         <service
             android:name=".rehber.CallerIdService"
