@@ -1,10 +1,1 @@
-package com.elak.okulum.rehber
-
-object PhoneUtil {
-    fun normalize(raw: String?): String {
-        var digits = raw.orEmpty().filter { it.isDigit() }
-        if (digits.startsWith("90") && digits.length >= 12) digits = digits.drop(2)
-        if (digits.startsWith("0") && digits.length >= 11) digits = digits.drop(1)
-        return if (digits.length > 10) digits.takeLast(10) else digits
-    }
-}
+package com.elak.okulum.rehber\n\nobject PhoneUtil {\n    fun normalize(raw: String?): String {\n        var digits = raw.orEmpty().filter { it.isDigit() }\n        if (digits.startsWith("0090")) digits = digits.drop(4)\n        if (digits.startsWith("90") && digits.length >= 12) digits = digits.drop(2)\n        if (digits.startsWith("0") && digits.length >= 11) digits = digits.drop(1)\n        return if (digits.length > 10) digits.takeLast(10) else digits\n    }\n\n    fun international(raw: String?): String {\n        val n = normalize(raw)\n        return if (n.length == 10) "90" + n else n\n    }\n\n    fun display(raw: String?): String {\n        val n = normalize(raw)\n        return if (n.length == 10) {\n            "0" + n.substring(0,3) + " " + n.substring(3,6) + " " + n.substring(6,8) + " " + n.substring(8)\n        } else raw.orEmpty()\n    }\n}\n
