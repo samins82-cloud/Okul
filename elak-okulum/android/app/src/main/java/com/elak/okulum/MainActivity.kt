@@ -131,7 +131,7 @@ class MainActivity : AppCompatActivity() {
             allowFileAccess = false; allowContentAccess = true; loadsImagesAutomatically = true
             defaultTextEncodingName = "UTF-8"; textZoom = 100; cacheMode = WebSettings.LOAD_DEFAULT
             mediaPlaybackRequiresUserGesture = true
-            userAgentString = "$userAgentString ELAK-Okulum/0.7.0 tr-TR"
+            userAgentString = "$userAgentString ELAK-Okulum/0.7.1 tr-TR"
         }
         webView.webChromeClient = object : WebChromeClient() {
             override fun onProgressChanged(view: WebView?, newProgress: Int) { progressBar.progress = newProgress; progressBar.visibility = if (newProgress in 1..99) View.VISIBLE else View.GONE }
