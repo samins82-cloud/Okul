@@ -19,18 +19,10 @@
             android:showWhenLocked="true"
             android:turnScreenOn="true" />
 
-        <activity
-            android:name=".rehber.RehberActivity"
-            android:exported="false" />
-
-        <activity
-            android:name=".rehber.RehberActivity81"
-            android:exported="false" />
-
-        <activity
-            android:name=".rehber.RehberActivity82"
-            android:exported="false"
-            android:launchMode="singleTop" />
+        <activity android:name=".rehber.RehberActivity" android:exported="false" />
+        <activity android:name=".rehber.RehberActivity81" android:exported="false" />
+        <activity android:name=".rehber.RehberActivity82" android:exported="false" android:launchMode="singleTop" />
+        <activity android:name=".rehber.RehberActivity84" android:exported="false" android:launchMode="singleTop" />
 
         <service
             android:name=".rehber.CallerIdService"
