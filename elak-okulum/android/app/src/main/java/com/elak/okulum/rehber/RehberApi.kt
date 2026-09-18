@@ -10,7 +10,7 @@ import java.net.URL
 
 object RehberApi {
     private const val BASE = "https://elak.mcoaihl.com/rehber/"
-    private const val UA = "ELAK-Okulum/0.8.0 Android"
+    private const val UA = "ELAK-Okulum/0.8.3 Android"
 
     data class LoginResult(
         val token: String,
