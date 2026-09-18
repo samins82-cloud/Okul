@@ -36,7 +36,7 @@ import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import com.elak.okulum.rehber.CallerCache
-import com.elak.okulum.rehber.RehberActivity
+import com.elak.okulum.rehber.RehberActivity81
 import com.elak.okulum.rehber.RehberApi
 import com.elak.okulum.rehber.RehberSession
 import java.util.Locale
@@ -114,9 +114,8 @@ class MainActivity : AppCompatActivity() {
                     session.token = login.token; session.username = u
                     val count = CallerCache(this@MainActivity).replaceFromSync(RehberApi.sync(login.token))
                     session.lastSync = System.currentTimeMillis()
-                    runOnUiThread { Toast.makeText(this@MainActivity, "Akıllı Rehber otomatik bağlandı: $count kayıt", Toast.LENGTH_SHORT).show() }
-                } catch (_: Exception) {
-                }
+                    runOnUiThread { Toast.makeText(this@MainActivity, "Akıllı Rehber otomatik bağlandı: $count telefon", Toast.LENGTH_SHORT).show() }
+                } catch (_: Exception) { }
             }
         }
     }
@@ -131,7 +130,7 @@ class MainActivity : AppCompatActivity() {
             allowFileAccess = false; allowContentAccess = true; loadsImagesAutomatically = true
             defaultTextEncodingName = "UTF-8"; textZoom = 100; cacheMode = WebSettings.LOAD_DEFAULT
             mediaPlaybackRequiresUserGesture = true
-            userAgentString = "$userAgentString ELAK-Okulum/0.7.1 tr-TR"
+            userAgentString = "$userAgentString ELAK-Okulum/0.8.1 tr-TR"
         }
         webView.webChromeClient = object : WebChromeClient() {
             override fun onProgressChanged(view: WebView?, newProgress: Int) { progressBar.progress = newProgress; progressBar.visibility = if (newProgress in 1..99) View.VISIBLE else View.GONE }
@@ -150,12 +149,10 @@ class MainActivity : AppCompatActivity() {
                 val uri = request?.url ?: return false
                 val scheme = uri.scheme?.lowercase().orEmpty(); val host = uri.host?.lowercase().orEmpty()
                 if ((scheme == "http" || scheme == "https") && host == "elak.mcoaihl.com" && uri.path.orEmpty().startsWith("/rehber")) {
-                    startActivity(Intent(this@MainActivity, RehberActivity::class.java)); return true
+                    startActivity(Intent(this@MainActivity, RehberActivity81::class.java)); return true
                 }
                 if ((scheme == "http" || scheme == "https") && host in INTERNAL_HOSTS) return false
-                return try {
-                    startActivity(if (scheme == "intent") Intent.parseUri(uri.toString(), Intent.URI_INTENT_SCHEME) else Intent(Intent.ACTION_VIEW, uri)); true
-                } catch (_: Exception) { false }
+                return try { startActivity(if (scheme == "intent") Intent.parseUri(uri.toString(), Intent.URI_INTENT_SCHEME) else Intent(Intent.ACTION_VIEW, uri)); true } catch (_: Exception) { false }
             }
             override fun onPageStarted(view: WebView?, url: String?, favicon: android.graphics.Bitmap?) { hideError() }
             override fun onPageFinished(view: WebView?, url: String?) { CookieManager.getInstance().flush(); injectLoginBridge() }
