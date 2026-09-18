@@ -8,8 +8,8 @@ android {
         applicationId = "com.elak.okulum"
         minSdk = 24
         targetSdk = 35
-        versionCode = 13
-        versionName = "0.6.1"
+        versionCode = 14
+        versionName = "0.7.0"
     }
 
     compileOptions {
@@ -27,4 +27,5 @@ dependencies {
     implementation("androidx.activity:activity-ktx:1.10.1")
     implementation("androidx.appcompat:appcompat:1.7.0")
     implementation("com.google.android.material:material:1.12.0")
+    implementation("androidx.work:work-runtime-ktx:2.10.0")
 }
