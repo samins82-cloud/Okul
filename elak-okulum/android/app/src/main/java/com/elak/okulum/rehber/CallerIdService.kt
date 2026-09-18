@@ -35,7 +35,7 @@ class CallerIdService : CallScreeningService() {
                 putExtra("has_photo", match.hasPhoto)
                 putExtra("photo_version", match.photoVersion)
                 putExtra("phone", phone)
-                putExtra("extra", match.extraCount)
+                putExtra("extra", match.extraCount)\n                putExtra("related_students", matches.mapNotNull { m ->\n                    val parts = listOf(m.studentName, m.className, if (m.schoolNo.isNotBlank()) "No: " + m.schoolNo else "").filter { it.isNotBlank() }\n                    parts.joinToString(" · ").takeIf { it.isNotBlank() }\n                }.distinct().joinToString("\\n"))
             })
         } catch (_: Exception) { }
     }
