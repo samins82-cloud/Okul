@@ -34,7 +34,6 @@ if "private fun whatsappAction" not in a:
 '''
     a = a[:idx] + helper + a[idx:]
 
-# If a class WhatsApp button still has a W placeholder, keep the label but add the brand icon.
 a = a.replace(
     'text = "W Grup"',
     'text = "Grup"\n            setCompoundDrawablesWithIntrinsicBounds(R.drawable.ic_whatsapp, 0, 0, 0)\n            compoundDrawablePadding = dp(5)'
@@ -48,6 +47,9 @@ activity.write_text(a, encoding="utf-8")
 
 # Put the WhatsApp icon beside the full-width incoming-call action as well.
 i = incoming.read_text(encoding="utf-8")
+if "import com.elak.okulum.R" not in i:
+    package_line = "package com.elak.okulum.rehber\n"
+    i = i.replace(package_line, package_line + "\nimport com.elak.okulum.R\n", 1)
 old = '            text = "WhatsApp\'tan Yaz"\n            textSize = 14f'
 new = '            text = "WhatsApp\'tan Yaz"\n            setCompoundDrawablesWithIntrinsicBounds(R.drawable.ic_whatsapp, 0, 0, 0)\n            compoundDrawablePadding = dp(8)\n            textSize = 14f'
 if old in i:
