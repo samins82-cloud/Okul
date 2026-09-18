@@ -153,7 +153,7 @@ class CallerCache(context: Context) :
 
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
         listOf("students", "guardians", "callers", "classes", "announcements", "incoming_history", "meta").forEach {
-            db.execSQL("DROP TABLE IF EXISTS \$it")
+            db.execSQL("DROP TABLE IF EXISTS " + it)
         }
         onCreate(db)
     }
@@ -257,7 +257,7 @@ class CallerCache(context: Context) :
         if (arr != null) {
             for (i in 0 until arr.length()) {
                 val a = arr.optJSONObject(i) ?: continue
-                val id = first(a, "id", "announcement_id", "uuid").ifBlank { "a_\${i}_\${System.currentTimeMillis()}" }
+                val id = first(a, "id", "announcement_id", "uuid").ifBlank { "a_" + i + "_" + System.currentTimeMillis() }
                 val cv = ContentValues().apply {
                     put("id", id)
                     put("title", first(a, "title", "baslik", "subject"))
@@ -457,7 +457,7 @@ class CallerCache(context: Context) :
                 out.add(g)
             }
         }
-        return out.distinctBy { "\${it.phone}|\${it.name}|\${it.studentId}" }
+        return out.distinctBy { it.phone + "|" + it.name + "|" + it.studentId }
     }
 
     fun guardiansForStudent(studentId: Long): List<Guardian> {
@@ -509,11 +509,8 @@ class CallerCache(context: Context) :
     fun listHistory(missedOnly: Boolean = true, limit: Int = 100): List<History> {
         val out = ArrayList<History>()
         val where = if (missedOnly) "WHERE status='Cevapsız Arama'" else ""
-        readableDatabase.rawQuery(
-            """SELECT id,phone,call_time,matched,guardian_name,relationship,student_name,class_name,school_no,student_id,status
-               FROM incoming_history \$where ORDER BY call_time DESC LIMIT ?""".trimIndent(),
-            arrayOf(limit.toString())
-        ).use { c ->
+        val sql = "SELECT id,phone,call_time,matched,guardian_name,relationship,student_name,class_name,school_no,student_id,status FROM incoming_history " + where + " ORDER BY call_time DESC LIMIT ?"
+        readableDatabase.rawQuery(sql, arrayOf(limit.toString())).use { c ->
             while (c.moveToNext()) out.add(
                 History(c.getLong(0), c.getString(1).orEmpty(), c.getLong(2), c.getInt(3) == 1, c.getString(4).orEmpty(), c.getString(5).orEmpty(), c.getString(6).orEmpty(), c.getString(7).orEmpty(), c.getString(8).orEmpty(), c.getLong(9), c.getString(10).orEmpty())
             )
