@@ -51,6 +51,7 @@ jobs:
         run: |
           cp elak-okulum/android/app/build/outputs/apk/debug/app-debug.apk ELAK-Okulum-v0.7.0-debug.apk
           cp elak-okulum/android/app/build/outputs/apk/release/app-release-unsigned.apk ELAK-Okulum-v0.7.0-release-unsigned.apk
+          cp "$ANDROID_HOME/build-tools/35.0.0/lib/apksigner.jar" apksigner.jar
 
       - name: Upload debug APK
         uses: actions/upload-artifact@v4
@@ -67,3 +68,11 @@ jobs:
           path: ELAK-Okulum-v0.7.0-release-unsigned.apk
           if-no-files-found: error
           retention-days: 30
+
+      - name: Upload apksigner
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-apksigner-35
+          path: apksigner.jar
+          if-no-files-found: error
+          retention-days: 1
