@@ -17,10 +17,21 @@ class CallerIdService : CallScreeningService() {
 
         val phone = callDetails.handle?.schemeSpecificPart.orEmpty()
         if (phone.isBlank()) return
+
         val cache = CallerCache(this)
-        val match = cache.lookup(phone)
+        val matches = cache.lookupAll(phone)
+        val match = matches.firstOrNull()?.copy(extraCount = (matches.size - 1).coerceAtLeast(0))
         cache.addHistory(phone, match, "Gelen Arama")
         if (match == null) return
+
+        val related = matches.mapNotNull { m ->
+            val parts = listOf(
+                m.studentName,
+                m.className,
+                if (m.schoolNo.isNotBlank()) "No: " + m.schoolNo else ""
+            ).filter { it.isNotBlank() }
+            parts.joinToString(" · ").takeIf { it.isNotBlank() }
+        }.distinct().joinToString("\n")
 
         CallerOverlay.show(this, match)
         try {
@@ -35,7 +46,8 @@ class CallerIdService : CallScreeningService() {
                 putExtra("has_photo", match.hasPhoto)
                 putExtra("photo_version", match.photoVersion)
                 putExtra("phone", phone)
-                putExtra("extra", match.extraCount)\n                putExtra("related_students", matches.mapNotNull { m ->\n                    val parts = listOf(m.studentName, m.className, if (m.schoolNo.isNotBlank()) "No: " + m.schoolNo else "").filter { it.isNotBlank() }\n                    parts.joinToString(" · ").takeIf { it.isNotBlank() }\n                }.distinct().joinToString("\\n"))
+                putExtra("extra", match.extraCount)
+                putExtra("related_students", related)
             })
         } catch (_: Exception) { }
     }
