@@ -28,7 +28,8 @@ class IncomingCallerActivity : AppCompatActivity() {
         val studentId = intent.getLongExtra("student_id", 0L)
         val hasPhoto = intent.getBooleanExtra("has_photo", false)
         val photoVersion = intent.getLongExtra("photo_version", 0L)
-        val extra = intent.getIntExtra("extra", 0)\n        val relatedStudents = intent.getStringExtra("related_students").orEmpty()
+        val extra = intent.getIntExtra("extra", 0)
+        val relatedStudents = intent.getStringExtra("related_students").orEmpty()
 
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
