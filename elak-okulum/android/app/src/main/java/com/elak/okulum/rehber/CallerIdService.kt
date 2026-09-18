@@ -33,7 +33,6 @@ class CallerIdService : CallScreeningService() {
             parts.joinToString(" · ").takeIf { it.isNotBlank() }
         }.distinct().joinToString("\n")
 
-        CallerOverlay.show(this, match)
         try {
             startActivity(Intent(this, IncomingCallerActivity::class.java).apply {
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP)
