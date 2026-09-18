@@ -17,5 +17,13 @@ class RehberSession(context: Context) {
         get() = prefs.getLong("last_sync", 0L)
         set(value) { prefs.edit().putLong("last_sync", value).apply() }
 
+    var cardView: Boolean
+        get() = prefs.getBoolean("card_view", false)
+        set(value) { prefs.edit().putBoolean("card_view", value).apply() }
+
+    var lastDirectoryMode: String
+        get() = prefs.getString("directory_mode", "student").orEmpty()
+        set(value) { prefs.edit().putString("directory_mode", value).apply() }
+
     fun clear() { prefs.edit().clear().apply() }
 }
