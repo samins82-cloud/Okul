@@ -58,7 +58,7 @@ class IncomingCallerActivity : AppCompatActivity() {
         if (hasPhoto && studentId > 0) {
             val token = RehberSession(this).token
             if (!token.isNullOrBlank()) thread {
-                val bytes = RehberApi.photoBytes(token, studentId, photoVersion) ?: return@thread
+                val bytes = PhotoStore.get(this, token, studentId, photoVersion) ?: return@thread
                 val bm = BitmapFactory.decodeByteArray(bytes, 0, bytes.size) ?: return@thread
                 runOnUiThread { photo.setImageBitmap(bm) }
             }
