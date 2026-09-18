@@ -357,24 +357,32 @@ class CallerCache(context: Context) :
         db.insert("guardians", null, cv)
     }
 
-    fun lookup(rawPhone: String): Match? {
+    fun lookupAll(rawPhone: String): List<Match> {
         val key = PhoneUtil.normalize(rawPhone)
-        if (key.length < 10) return null
+        if (key.length < 10) return emptyList()
+        val out = ArrayList<Match>()
         readableDatabase.rawQuery(
             """SELECT guardian_name,relationship,student_name,school_no,class_name,student_id,has_photo,photo_version,phone_key
                FROM callers WHERE phone_key=? ORDER BY class_name,student_name""".trimIndent(),
             arrayOf(key)
-        ).use { c ->
-            if (!c.moveToFirst()) return null
-            val first = Match(
-                c.getString(0).orEmpty(), c.getString(1).orEmpty(), c.getString(2).orEmpty(),
-                c.getString(3).orEmpty(), c.getString(4).orEmpty(), c.getLong(5),
-                c.getInt(6) == 1, c.getLong(7), c.getString(8).orEmpty(), 0
-            )
-            var total = 1
-            while (c.moveToNext()) total++
-            return first.copy(extraCount = (total - 1).coerceAtLeast(0))
+        ).use { cursor ->
+            while (cursor.moveToNext()) {
+                out.add(
+                    Match(
+                        cursor.getString(0).orEmpty(), cursor.getString(1).orEmpty(), cursor.getString(2).orEmpty(),
+                        cursor.getString(3).orEmpty(), cursor.getString(4).orEmpty(), cursor.getLong(5),
+                        cursor.getInt(6) == 1, cursor.getLong(7), cursor.getString(8).orEmpty(), 0
+                    )
+                )
+            }
         }
+        return out.distinctBy { it.studentId.toString() + "|" + it.studentName + "|" + it.guardianName + "|" + it.relationship }
+    }
+
+    fun lookup(rawPhone: String): Match? {
+        val all = lookupAll(rawPhone)
+        if (all.isEmpty()) return null
+        return all.first().copy(extraCount = (all.size - 1).coerceAtLeast(0))
     }
 
     fun count(): Int = readableDatabase.rawQuery("SELECT COUNT(DISTINCT phone_key) FROM callers", null)
