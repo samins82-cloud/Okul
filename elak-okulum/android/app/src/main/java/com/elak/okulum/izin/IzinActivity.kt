@@ -8,9 +8,12 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Color
 import android.net.Uri
+import android.net.http.SslError
 import android.os.Build
 import android.os.Bundle
 import android.os.Environment
+import android.os.Handler
+import android.os.Looper
 import android.provider.MediaStore
 import android.view.Gravity
 import android.view.View
@@ -25,30 +28,25 @@ import android.webkit.WebResourceResponse
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
-import android.net.http.SslError
-import android.widget.Button
 import android.widget.FrameLayout
-import android.widget.LinearLayout
 import android.widget.ProgressBar
-import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
-import androidx.core.view.ViewCompat
-import androidx.core.view.WindowCompat
-import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
+import com.elak.okulum.OkulumSession
+import org.json.JSONObject
 import java.io.File
-import java.util.Locale
 
 class IzinActivity : AppCompatActivity() {
     companion object {
         const val EXTRA_URL = "izin_url"
-        private const val START_URL = "https://mcoaihl.com/izin/index.php"
-        private const val ALT_URL = "https://www.mcoaihl.com/izin/index.php"
-        private val INTERNAL_HOSTS = setOf("mcoaihl.com", "www.mcoaihl.com")
+        private const val START_URL = "https://www.mcoaihl.com/izin/index.php"
+        private const val ALT_URL = "https://mcoaihl.com/izin/index.php"
+        private const val INTERNAL_HOST = "mcoaihl.com"
+        private const val MOBILE_UA = "Mozilla/5.0 (Linux; Android 14; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Mobile Safari/537.36"
     }
 
     private data class PendingDownload(
@@ -58,19 +56,18 @@ class IzinActivity : AppCompatActivity() {
         val mimeType: String
     )
 
-    private lateinit var root: LinearLayout
-    private lateinit var webFrame: FrameLayout
+    private lateinit var root: FrameLayout
     private lateinit var webView: WebView
     private lateinit var progressBar: ProgressBar
-    private lateinit var errorPanel: LinearLayout
-    private lateinit var errorTitle: TextView
-    private lateinit var errorDetail: TextView
 
+    private val handler = Handler(Looper.getMainLooper())
     private var fileCallback: android.webkit.ValueCallback<Array<Uri>>? = null
     private var cameraOutputUri: Uri? = null
     private var pendingDownload: PendingDownload? = null
     private var alternateHostTried = false
-    private var blankCheckGeneration = 0
+    private var currentHostReloadTried = false
+    private var showingLocalError = false
+    private var autoLoginAttempts = 0
 
     private val fileChooserLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         val callback = fileCallback ?: return@registerForActivityResult
@@ -98,184 +95,136 @@ class IzinActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        Locale.setDefault(Locale.forLanguageTag("tr-TR"))
-        WindowCompat.setDecorFitsSystemWindows(window, false)
         window.statusBarColor = Color.WHITE
         window.navigationBarColor = Color.WHITE
         buildUi()
-        configureInsets()
+        WindowInsetsControllerCompat(window, root).apply {
+            isAppearanceLightStatusBars = true
+            isAppearanceLightNavigationBars = true
+        }
         configureWebView()
 
         if (savedInstanceState != null && webView.restoreState(savedInstanceState) != null) {
-            hideError()
+            showingLocalError = false
         } else {
-            loadInitialUrl(intent.getStringExtra(EXTRA_URL))
+            val initial = normalizeInternalUrl(intent.getStringExtra(EXTRA_URL)) ?: START_URL
+            loadMainUrl(initial, true)
         }
     }
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
-        intent.getStringExtra(EXTRA_URL)?.let { loadInitialUrl(it) }
+        normalizeInternalUrl(intent.getStringExtra(EXTRA_URL))?.let { loadMainUrl(it, true) }
     }
 
     private fun buildUi() {
-        root = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setBackgroundColor(Color.rgb(246, 249, 253))
-        }
-
-        val header = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(8), dp(6), dp(8), dp(6))
-            setBackgroundColor(Color.WHITE)
-            elevation = dp(5).toFloat()
-        }
-        val back = TextView(this).apply {
-            text = "‹"
-            textSize = 36f
-            gravity = Gravity.CENTER
-            setTextColor(Color.rgb(9, 49, 88))
-            contentDescription = "Geri"
-            setOnClickListener { handleBack() }
-        }
-        val titleWrap = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            gravity = Gravity.CENTER_VERTICAL
-        }
-        titleWrap.addView(TextView(this).apply {
-            text = "İzin Takip"
-            textSize = 19f
-            setTextColor(Color.rgb(9, 49, 88))
-            setTypeface(typeface, android.graphics.Typeface.BOLD)
-        })
-        titleWrap.addView(TextView(this).apply {
-            text = "ELAK Okulum"
-            textSize = 10.5f
-            setTextColor(Color.rgb(111, 128, 149))
-        })
-        val browser = TextView(this).apply {
-            text = "↗"
-            textSize = 23f
-            gravity = Gravity.CENTER
-            setTextColor(Color.rgb(27, 103, 166))
-            contentDescription = "Tarayıcıda Aç"
-            setOnClickListener { openExternal(webView.url ?: START_URL) }
-        }
-        val refresh = TextView(this).apply {
-            text = "↻"
-            textSize = 25f
-            gravity = Gravity.CENTER
-            setTextColor(Color.rgb(27, 103, 166))
-            contentDescription = "Yenile"
-            setOnClickListener {
-                alternateHostTried = false
-                hideError()
-                if (webView.url.isNullOrBlank()) webView.loadUrl(START_URL) else webView.reload()
-            }
-        }
-        header.addView(back, LinearLayout.LayoutParams(dp(44), dp(50)))
-        header.addView(titleWrap, LinearLayout.LayoutParams(0, dp(50), 1f))
-        header.addView(browser, LinearLayout.LayoutParams(dp(44), dp(50)))
-        header.addView(refresh, LinearLayout.LayoutParams(dp(44), dp(50)))
-        root.addView(header, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(62)))
-
-        webFrame = FrameLayout(this).apply { setBackgroundColor(Color.WHITE) }
+        // Bağımsız ELAK İzin Takip APK'sı ile aynı: tam ekran WebView + ince yükleme çubuğu.
+        root = FrameLayout(this).apply { setBackgroundColor(Color.WHITE) }
         webView = WebView(this).apply { setBackgroundColor(Color.WHITE) }
         progressBar = ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal).apply {
             max = 100
             visibility = View.GONE
         }
-        errorPanel = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            gravity = Gravity.CENTER
-            setPadding(dp(28), dp(28), dp(28), dp(28))
-            setBackgroundColor(Color.rgb(238, 244, 251))
-            visibility = View.GONE
-        }
-        errorTitle = TextView(this).apply {
-            text = "Bağlantı kurulamadı"
-            textSize = 20f
-            setTextColor(Color.rgb(16, 35, 63))
-            setTypeface(typeface, android.graphics.Typeface.BOLD)
-            gravity = Gravity.CENTER
-        }
-        errorDetail = TextView(this).apply {
-            text = "İnternet bağlantınızı kontrol edip yeniden deneyin."
-            textSize = 13.5f
-            setTextColor(Color.rgb(86, 106, 132))
-            gravity = Gravity.CENTER
-            setPadding(0, dp(10), 0, dp(18))
-        }
-        val retry = Button(this).apply {
-            text = "Tekrar Dene"
-            setOnClickListener {
-                alternateHostTried = false
-                hideError()
-                webView.loadUrl(START_URL)
-            }
-        }
-        val openBrowser = Button(this).apply {
-            text = "Tarayıcıda Aç"
-            setOnClickListener { openExternal(webView.url ?: START_URL) }
-        }
-        errorPanel.addView(errorTitle, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
-        errorPanel.addView(errorDetail, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
-        errorPanel.addView(retry, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(48)).apply { bottomMargin = dp(8) })
-        errorPanel.addView(openBrowser, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(48)))
-
-        webFrame.addView(webView, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
-        webFrame.addView(progressBar, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(3), Gravity.TOP))
-        webFrame.addView(errorPanel, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
-        root.addView(webFrame, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
+        root.addView(webView, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
+        root.addView(progressBar, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(3), Gravity.TOP))
         setContentView(root)
-    }
-
-    private fun configureInsets() {
-        WindowInsetsControllerCompat(window, root).apply {
-            isAppearanceLightStatusBars = true
-            isAppearanceLightNavigationBars = true
-        }
-        ViewCompat.setOnApplyWindowInsetsListener(root) { view, insets ->
-            val bars = insets.getInsets(WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout())
-            view.setPadding(bars.left, bars.top, bars.right, bars.bottom)
-            insets
-        }
-        ViewCompat.requestApplyInsets(root)
     }
 
     @android.annotation.SuppressLint("SetJavaScriptEnabled")
     private fun configureWebView() {
-        CookieManager.getInstance().setAcceptCookie(true)
-        CookieManager.getInstance().setAcceptThirdPartyCookies(webView, true)
         with(webView.settings) {
             javaScriptEnabled = true
             domStorageEnabled = true
             databaseEnabled = true
             allowFileAccess = false
             allowContentAccess = true
-            loadsImagesAutomatically = true
             builtInZoomControls = false
             displayZoomControls = false
             setSupportZoom(false)
-            loadWithOverviewMode = true
+            loadWithOverviewMode = false
             useWideViewPort = true
-            defaultTextEncodingName = "UTF-8"
-            textZoom = 100
-            cacheMode = WebSettings.LOAD_DEFAULT
-            mediaPlaybackRequiresUserGesture = true
-            javaScriptCanOpenWindowsAutomatically = false
+            mediaPlaybackRequiresUserGesture = false
+            javaScriptCanOpenWindowsAutomatically = true
             setSupportMultipleWindows(false)
+            cacheMode = WebSettings.LOAD_DEFAULT
+            textZoom = 100
+            defaultTextEncodingName = "UTF-8"
+            mixedContentMode = WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE
+            userAgentString = MOBILE_UA
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) safeBrowsingEnabled = true
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) mixedContentMode = WebSettings.MIXED_CONTENT_NEVER_ALLOW
-            userAgentString = "$userAgentString ELAK-Okulum/0.8.7 Izin-Takip/1.0.2 tr-TR"
+        }
+
+        CookieManager.getInstance().apply {
+            setAcceptCookie(true)
+            setAcceptThirdPartyCookies(webView, true)
+        }
+
+        webView.webViewClient = object : WebViewClient() {
+            override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
+                return handleNavigation(request?.url?.toString().orEmpty())
+            }
+
+            @Deprecated("Deprecated in Java")
+            override fun shouldOverrideUrlLoading(view: WebView?, url: String?): Boolean {
+                return handleNavigation(url.orEmpty())
+            }
+
+            override fun onPageStarted(view: WebView?, url: String?, favicon: android.graphics.Bitmap?) {
+                if (!showingLocalError) progressBar.visibility = View.VISIBLE
+            }
+
+            override fun onPageFinished(view: WebView?, url: String?) {
+                CookieManager.getInstance().flush()
+                progressBar.visibility = View.GONE
+                if (!showingLocalError && isInternalUrl(url.orEmpty())) {
+                    injectOkulumAutoLogin()
+                    scheduleRealBlankCheck(url.orEmpty())
+                }
+            }
+
+            override fun onReceivedError(view: WebView?, request: WebResourceRequest?, error: WebResourceError?) {
+                if (request?.isForMainFrame == true) {
+                    val detail = "WebView hata kodu ${error?.errorCode ?: -1}: ${error?.description.orEmpty()}"
+                    handleMainFrameFailure(request.url?.toString() ?: START_URL, "Sayfa yüklenemedi", detail)
+                }
+            }
+
+            override fun onReceivedHttpError(view: WebView?, request: WebResourceRequest?, errorResponse: WebResourceResponse?) {
+                if (request?.isForMainFrame == true && errorResponse != null && errorResponse.statusCode >= 400) {
+                    handleMainFrameFailure(
+                        request.url?.toString() ?: START_URL,
+                        "Sunucu sayfayı açamadı",
+                        "HTTP ${errorResponse.statusCode} ${errorResponse.reasonPhrase.orEmpty()}"
+                    )
+                }
+            }
+
+            override fun onReceivedSslError(view: WebView?, handler: SslErrorHandler?, error: SslError?) {
+                handler?.cancel()
+                val failing = error?.url ?: START_URL
+                if (tryAlternateHost(failing)) return
+                showLocalError(
+                    "Güvenli bağlantı kurulamadı",
+                    "Sunucunun SSL sertifikası Android tarafından doğrulanamadı. Sertifika kontrolü güvenlik nedeniyle kapatılmadı.",
+                    failing
+                )
+            }
+
+            override fun onRenderProcessGone(view: WebView?, detail: android.webkit.RenderProcessGoneDetail?): Boolean {
+                showLocalError(
+                    "Android WebView yeniden başlatılmalı",
+                    "Android System WebView işlemi kapandı. Uygulamayı kapatıp yeniden açın; sorun sürerse Android System WebView ve Chrome'u güncelleyin.",
+                    START_URL
+                )
+                return true
+            }
         }
 
         webView.webChromeClient = object : WebChromeClient() {
             override fun onProgressChanged(view: WebView?, newProgress: Int) {
                 progressBar.progress = newProgress
-                progressBar.visibility = if (newProgress in 1..99) View.VISIBLE else View.GONE
+                if (!showingLocalError) progressBar.visibility = if (newProgress >= 100) View.GONE else View.VISIBLE
             }
 
             override fun onShowFileChooser(
@@ -285,53 +234,7 @@ class IzinActivity : AppCompatActivity() {
             ): Boolean {
                 fileCallback?.onReceiveValue(null)
                 fileCallback = filePathCallback
-                return openFileChooser(fileChooserParams)
-            }
-        }
-
-        webView.webViewClient = object : WebViewClient() {
-            override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
-                val uri = request?.url ?: return false
-                return handleNavigation(uri)
-            }
-
-            override fun onPageStarted(view: WebView?, url: String?, favicon: android.graphics.Bitmap?) {
-                hideError()
-                progressBar.visibility = View.VISIBLE
-                blankCheckGeneration++
-            }
-
-            override fun onPageFinished(view: WebView?, url: String?) {
-                progressBar.visibility = View.GONE
-                CookieManager.getInstance().flush()
-                scheduleBlankCheck(url.orEmpty())
-            }
-
-            override fun onReceivedError(view: WebView?, request: WebResourceRequest?, error: WebResourceError?) {
-                if (request?.isForMainFrame == true) {
-                    handleMainFrameFailure("WebView hata kodu ${error.errorCode}: ${error.description}", request.url?.toString())
-                }
-            }
-
-            override fun onReceivedHttpError(view: WebView?, request: WebResourceRequest?, errorResponse: WebResourceResponse?) {
-                if (request?.isForMainFrame == true && (errorResponse?.statusCode ?: 0) >= 400) {
-                    handleMainFrameFailure("HTTP ${errorResponse?.statusCode}: ${errorResponse?.reasonPhrase.orEmpty()}", request.url?.toString())
-                }
-            }
-
-            override fun onReceivedSslError(view: WebView?, handler: SslErrorHandler?, error: SslError?) {
-                handler?.cancel()
-                showLocalError(
-                    "Güvenli bağlantı kurulamadı",
-                    "Sunucunun SSL sertifikası Android tarafından doğrulanamadı. Sertifika kontrolü güvenlik nedeniyle kapatılmadı."
-                )
-            }
-
-            override fun onRenderProcessGone(view: WebView?, detail: android.webkit.RenderProcessGoneDetail?): Boolean {
-                showLocalError(
-                    "Android WebView yeniden başlatılmalı",
-                    "WebView işlemi kapandı. Uygulamayı kapatıp yeniden açın; sorun sürerse Android System WebView ve Chrome'u güncelleyin."
-                )
+                openFileChooser()
                 return true
             }
         }
@@ -354,203 +257,283 @@ class IzinActivity : AppCompatActivity() {
         }
     }
 
-    private fun loadInitialUrl(raw: String?) {
-        alternateHostTried = false
-        hideError()
-        val target = normalizeIzinUrl(raw) ?: START_URL
-        webView.loadUrl(target, mapOf("Accept-Language" to "tr-TR,tr;q=0.9,en-US;q=0.8,en;q=0.7"))
+    private fun injectOkulumAutoLogin() {
+        if (autoLoginAttempts >= 2) return
+        val session = OkulumSession(this)
+        val username = session.username
+        val password = session.password
+        if (username.isBlank() || password.isBlank()) return
+
+        autoLoginAttempts++
+        val userJs = JSONObject.quote(username)
+        val passJs = JSONObject.quote(password)
+        val js = """
+            (function(){
+              try {
+                var passwords = Array.prototype.slice.call(document.querySelectorAll('input[type="password"]'))
+                  .filter(function(e){ return e.offsetParent !== null && !e.disabled; });
+                if (passwords.length !== 1) return false;
+                var p = passwords[0];
+                var form = p.form || p.closest('form');
+                if (!form) return false;
+                var candidates = [
+                  '#schoolUser','#username','#user','#kullanici','#kullaniciAdi',
+                  'input[name="username"]','input[name="user"]','input[name="kullanici"]',
+                  'input[name="kullanici_adi"]','input[name="email"]','input[type="text"]','input[type="email"]'
+                ];
+                var u = null;
+                for (var i=0;i<candidates.length;i++) {
+                  var found = form.querySelector(candidates[i]);
+                  if (found && found.offsetParent !== null && !found.disabled) { u = found; break; }
+                }
+                if (!u) return false;
+                function setValue(el, value) {
+                  var proto = el instanceof HTMLTextAreaElement ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
+                  var desc = Object.getOwnPropertyDescriptor(proto, 'value');
+                  if (desc && desc.set) desc.set.call(el, value); else el.value = value;
+                  el.dispatchEvent(new Event('input',{bubbles:true}));
+                  el.dispatchEvent(new Event('change',{bubbles:true}));
+                }
+                setValue(u, $userJs);
+                setValue(p, $passJs);
+                var submit = form.querySelector('button[type="submit"],input[type="submit"],#loginBtn,.login-btn,.btn-login');
+                setTimeout(function(){
+                  try {
+                    if (form.requestSubmit) form.requestSubmit(submit || undefined);
+                    else if (submit) submit.click();
+                    else form.submit();
+                  } catch(e) { if (submit) submit.click(); else form.submit(); }
+                }, 120);
+                return true;
+              } catch(e) { return false; }
+            })();
+        """.trimIndent()
+
+        webView.evaluateJavascript(js) { result ->
+            if (result == "true") {
+                Toast.makeText(this, "ELAK Okulum hesabıyla İzin Takip açılıyor…", Toast.LENGTH_SHORT).show()
+            }
+        }
     }
 
-    private fun normalizeIzinUrl(raw: String?): String? {
+    private fun normalizeInternalUrl(raw: String?): String? {
         if (raw.isNullOrBlank()) return null
         return try {
             val uri = Uri.parse(raw)
-            if (uri.scheme !in listOf("http", "https")) return null
+            val scheme = uri.scheme?.lowercase().orEmpty()
             val host = uri.host?.lowercase().orEmpty()
+            if (scheme !in listOf("http", "https")) return null
+            if (!(host == INTERNAL_HOST || host.endsWith(".$INTERNAL_HOST") || host == "elak.mcoaihl.com")) return null
             val path = uri.path.orEmpty()
-            if (host == "elak.mcoaihl.com" && path.startsWith("/izin")) {
-                uri.buildUpon().authority("mcoaihl.com").scheme("https").build().toString()
-            } else if (host in INTERNAL_HOSTS && path.startsWith("/izin")) {
-                uri.buildUpon().scheme("https").build().toString()
-            } else null
+            val correctedHost = if (host == "elak.mcoaihl.com") "www.mcoaihl.com" else host
+            val correctedPath = if (path == "/izin" || path == "/izin/") "/izin/index.php" else path
+            uri.buildUpon().scheme("https").authority(correctedHost).path(correctedPath).build().toString()
         } catch (_: Exception) {
             null
         }
     }
 
-    private fun handleNavigation(uri: Uri): Boolean {
-        val scheme = uri.scheme?.lowercase().orEmpty()
-        if (scheme == "elak") {
-            when (uri.host?.lowercase()) {
-                "retry" -> {
-                    alternateHostTried = false
-                    hideError()
-                    webView.loadUrl(START_URL)
+    private fun loadMainUrl(url: String, resetAttempts: Boolean) {
+        showingLocalError = false
+        if (resetAttempts) {
+            currentHostReloadTried = false
+            alternateHostTried = false
+            autoLoginAttempts = 0
+        }
+        webView.loadUrl(
+            normalizeInternalUrl(url) ?: START_URL,
+            mapOf(
+                "Accept-Language" to "tr-TR,tr;q=0.9,en-US;q=0.8,en;q=0.7",
+                "Cache-Control" to "no-cache"
+            )
+        )
+    }
+
+    private fun isInternalUrl(url: String): Boolean {
+        return try {
+            val host = Uri.parse(url).host?.lowercase().orEmpty()
+            host == INTERNAL_HOST || host.endsWith(".$INTERNAL_HOST")
+        } catch (_: Exception) {
+            false
+        }
+    }
+
+    private fun isWwwHost(url: String): Boolean {
+        return try { Uri.parse(url).host.equals("www.mcoaihl.com", true) } catch (_: Exception) { false }
+    }
+
+    private fun tryAlternateHost(failingUrl: String): Boolean {
+        if (alternateHostTried) return false
+        alternateHostTried = true
+        currentHostReloadTried = false
+        val target = if (isWwwHost(failingUrl)) ALT_URL else START_URL
+        Toast.makeText(this, "Alternatif okul adresi deneniyor…", Toast.LENGTH_SHORT).show()
+        loadMainUrl(target, false)
+        return true
+    }
+
+    private fun handleMainFrameFailure(failingUrl: String, title: String, detail: String) {
+        if (tryAlternateHost(failingUrl)) return
+        showLocalError(title, detail, failingUrl)
+    }
+
+    private fun scheduleRealBlankCheck(url: String) {
+        handler.postDelayed({
+            if (isFinishing || showingLocalError) return@postDelayed
+            webView.evaluateJavascript(
+                "(function(){try{return JSON.stringify({html:(document.documentElement&&document.documentElement.outerHTML?document.documentElement.outerHTML.length:0),body:(document.body&&document.body.innerHTML?document.body.innerHTML.length:0)});}catch(e){return JSON.stringify({html:-1,body:-1});}})();"
+            ) { value ->
+                if (showingLocalError || value == null) return@evaluateJavascript
+                val decoded = value.replace("\\\"", "\"").trim('"')
+                val htmlLen = extractJsonInt(decoded, "html")
+                val bodyLen = extractJsonInt(decoded, "body")
+                if (htmlLen >= 200 || bodyLen >= 80 || htmlLen < 0) return@evaluateJavascript
+
+                if (!currentHostReloadTried) {
+                    currentHostReloadTried = true
+                    webView.clearCache(true)
+                    Toast.makeText(this, "Sayfa yeniden yükleniyor…", Toast.LENGTH_SHORT).show()
+                    loadMainUrl(url, false)
+                    return@evaluateJavascript
                 }
-                "browser" -> openExternal(webView.url ?: START_URL)
+                if (tryAlternateHost(url)) return@evaluateJavascript
+                showLocalError(
+                    "Sunucudan boş içerik geldi",
+                    "Sunucu bağlantıyı kabul etti ancak HTML içeriği boş döndü. Telefon tarayıcısında çalışan aynı adresi açabilirsiniz.",
+                    url
+                )
             }
+        }, 4500)
+    }
+
+    private fun extractJsonInt(json: String, key: String): Int {
+        return try {
+            val token = "\"$key\":"
+            var start = json.indexOf(token)
+            if (start < 0) return -1
+            start += token.length
+            var end = start
+            while (end < json.length && (json[end].isDigit() || json[end] == '-')) end++
+            json.substring(start, end).toInt()
+        } catch (_: Exception) {
+            -1
+        }
+    }
+
+    private fun showLocalError(title: String, detail: String, url: String) {
+        showingLocalError = true
+        progressBar.visibility = View.GONE
+        val safeTitle = htmlEscape(title)
+        val safeDetail = htmlEscape(detail)
+        val safeUrl = htmlEscape(url)
+        val html = """
+            <!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+            <style>body{margin:0;background:#eef4fb;font-family:Arial,sans-serif;color:#10233f}.wrap{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;box-sizing:border-box}.card{width:100%;max-width:520px;background:#fff;border:1px solid #d9e4f1;border-radius:22px;padding:24px;box-shadow:0 18px 55px rgba(15,47,92,.13)}.icon{width:56px;height:56px;border-radius:18px;background:#e8f1ff;color:#1769e0;display:grid;place-items:center;font-size:29px;font-weight:bold}h1{font-size:22px;margin:16px 0 8px}p{font-size:14px;line-height:1.55;color:#566a84}.url{font-size:11px;background:#f6f8fb;border:1px solid #e1e8f0;border-radius:10px;padding:10px;word-break:break-all;color:#50627a}.btn{display:block;text-align:center;text-decoration:none;background:#1769e0;color:#fff;padding:13px 15px;border-radius:12px;font-weight:bold;margin-top:12px}.btn2{background:#0f766e}.small{font-size:12px;color:#7a899d;margin-top:12px}</style></head>
+            <body><div class="wrap"><div class="card"><div class="icon">!</div><h1>$safeTitle</h1><p>$safeDetail</p><div class="url">$safeUrl</div><a class="btn" href="elak://retry">Tekrar Dene</a><a class="btn btn2" href="elak://browser">Tarayıcıda Aç</a><div class="small">ELAK Okulum · İzin Takip</div></div></div></body></html>
+        """.trimIndent()
+        webView.loadDataWithBaseURL("https://www.mcoaihl.com/", html, "text/html", "UTF-8", null)
+    }
+
+    private fun htmlEscape(value: String): String {
+        return value.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\"", "&quot;").replace("'", "&#39;")
+    }
+
+    private fun handleNavigation(url: String): Boolean {
+        if (url.isBlank()) return false
+        if (url.startsWith("elak://retry")) {
+            loadMainUrl(START_URL, true)
             return true
         }
-        if (scheme == "intent") {
-            return try {
-                startActivity(Intent.parseUri(uri.toString(), Intent.URI_INTENT_SCHEME))
-                true
-            } catch (_: Exception) {
-                false
-            }
-        }
-        if (scheme == "http" || scheme == "https") {
-            val host = uri.host?.lowercase().orEmpty()
-            if (host in INTERNAL_HOSTS && uri.path.orEmpty().startsWith("/izin")) return false
-            openExternal(uri.toString())
+        if (url.startsWith("elak://browser")) {
+            openExternal(START_URL)
             return true
         }
         return try {
+            val uri = Uri.parse(url)
+            val scheme = uri.scheme?.lowercase().orEmpty()
+            val host = uri.host?.lowercase().orEmpty()
+            if ((scheme == "https" || scheme == "http") && (host == INTERNAL_HOST || host.endsWith(".$INTERNAL_HOST"))) {
+                showingLocalError = false
+                return false
+            }
+            if (scheme == "intent") {
+                val intent = Intent.parseUri(url, Intent.URI_INTENT_SCHEME)
+                if (intent.resolveActivity(packageManager) != null) startActivity(intent)
+                else intent.getStringExtra("browser_fallback_url")?.let { openExternal(it) }
+                return true
+            }
             startActivity(Intent(Intent.ACTION_VIEW, uri))
             true
         } catch (_: Exception) {
+            Toast.makeText(this, "Bağlantı açılamadı.", Toast.LENGTH_SHORT).show()
             true
         }
     }
 
-    private fun openFileChooser(params: WebChromeClient.FileChooserParams?): Boolean {
-        return try {
-            val accept = params?.acceptTypes?.filter { it.isNotBlank() }.orEmpty()
-            val contentIntent = Intent(Intent.ACTION_GET_CONTENT).apply {
-                addCategory(Intent.CATEGORY_OPENABLE)
-                type = if (accept.size == 1) accept.first() else "*/*"
-                if (accept.size > 1) putExtra(Intent.EXTRA_MIME_TYPES, accept.toTypedArray())
-                putExtra(Intent.EXTRA_ALLOW_MULTIPLE, params?.mode == WebChromeClient.FileChooserParams.MODE_OPEN_MULTIPLE)
-            }
+    private fun openFileChooser() {
+        val contentIntent = Intent(Intent.ACTION_GET_CONTENT).apply {
+            addCategory(Intent.CATEGORY_OPENABLE)
+            type = "*/*"
+            putExtra(Intent.EXTRA_MIME_TYPES, arrayOf(
+                "application/pdf",
+                "application/vnd.ms-excel",
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                "image/jpeg",
+                "image/png",
+                "image/webp"
+            ))
+        }
 
-            val initialIntents = mutableListOf<Intent>()
-            val cameraIntent = Intent(MediaStore.ACTION_IMAGE_CAPTURE)
-            if (cameraIntent.resolveActivity(packageManager) != null) {
-                val cameraDir = File(cacheDir, "izin-camera").apply { mkdirs() }
-                val photoFile = File.createTempFile("izin_", ".jpg", cameraDir)
-                val photoUri = FileProvider.getUriForFile(this, "$packageName.fileprovider", photoFile)
-                cameraOutputUri = photoUri
-                cameraIntent.putExtra(MediaStore.EXTRA_OUTPUT, photoUri)
-                cameraIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
-                initialIntents.add(cameraIntent)
-            }
+        var cameraIntent: Intent? = Intent(MediaStore.ACTION_IMAGE_CAPTURE)
+        try {
+            val cameraDir = File(cacheDir, "camera").apply { mkdirs() }
+            val photoFile = File.createTempFile("student_", ".jpg", cameraDir)
+            cameraOutputUri = FileProvider.getUriForFile(this, "$packageName.fileprovider", photoFile)
+            cameraIntent?.putExtra(MediaStore.EXTRA_OUTPUT, cameraOutputUri)
+            cameraIntent?.addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION or Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            if (cameraIntent?.resolveActivity(packageManager) == null) cameraIntent = null
+        } catch (_: Exception) {
+            cameraIntent = null
+            cameraOutputUri = null
+        }
 
-            val chooser = Intent(Intent.ACTION_CHOOSER).apply {
-                putExtra(Intent.EXTRA_INTENT, contentIntent)
-                putExtra(Intent.EXTRA_TITLE, "Dosya / Fotoğraf Seç")
-                if (initialIntents.isNotEmpty()) putExtra(Intent.EXTRA_INITIAL_INTENTS, initialIntents.toTypedArray())
-            }
+        val chooser = Intent(Intent.ACTION_CHOOSER).apply {
+            putExtra(Intent.EXTRA_INTENT, contentIntent)
+            putExtra(Intent.EXTRA_TITLE, "Dosya / Fotoğraf Seç")
+            if (cameraIntent != null) putExtra(Intent.EXTRA_INITIAL_INTENTS, arrayOf(cameraIntent))
+        }
+        try {
             fileChooserLauncher.launch(chooser)
-            true
         } catch (_: Exception) {
             fileCallback?.onReceiveValue(null)
             fileCallback = null
-            cameraOutputUri = null
-            Toast.makeText(this, "Dosya seçici açılamadı.", Toast.LENGTH_LONG).show()
-            false
+            Toast.makeText(this, "Dosya seçici açılamadı.", Toast.LENGTH_SHORT).show()
         }
     }
 
     private fun enqueueDownload(item: PendingDownload) {
         try {
-            val fileName = URLUtil.guessFileName(item.url, item.contentDisposition, item.mimeType)
+            var filename = URLUtil.guessFileName(item.url, item.contentDisposition, item.mimeType)
+            if (filename.isBlank()) filename = "ELAK-dosya"
             val request = DownloadManager.Request(Uri.parse(item.url)).apply {
-                setTitle(fileName)
+                setTitle(filename)
                 setDescription("ELAK İzin Takip dosyası indiriliyor")
-                if (item.mimeType.isNotBlank()) setMimeType(item.mimeType)
-                if (item.userAgent.isNotBlank()) addRequestHeader("User-Agent", item.userAgent)
-                addRequestHeader("Accept-Language", "tr-TR,tr;q=0.9,en;q=0.7")
-                CookieManager.getInstance().getCookie(item.url)?.let { addRequestHeader("Cookie", it) }
                 setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
-                setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, fileName)
-                setAllowedOverMetered(true)
-                setAllowedOverRoaming(true)
+                setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, filename)
+                CookieManager.getInstance().getCookie(item.url)?.let { addRequestHeader("Cookie", it) }
+                addRequestHeader("User-Agent", MOBILE_UA)
+                if (item.mimeType.isNotBlank()) setMimeType(item.mimeType)
             }
             (getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager).enqueue(request)
-            Toast.makeText(this, "Dosya İndirilenler klasörüne kaydediliyor: $fileName", Toast.LENGTH_LONG).show()
+            Toast.makeText(this, "Dosya İndirilenler klasörüne kaydediliyor.", Toast.LENGTH_LONG).show()
         } catch (_: Exception) {
-            try {
-                openExternal(item.url)
-            } catch (_: Exception) {
-                Toast.makeText(this, "Dosya indirilemedi.", Toast.LENGTH_LONG).show()
-            }
+            openExternal(item.url)
         }
-    }
-
-    private fun scheduleBlankCheck(url: String) {
-        val generation = ++blankCheckGeneration
-        webView.postDelayed({
-            if (generation != blankCheckGeneration || isFinishing || errorPanel.visibility == View.VISIBLE) return@postDelayed
-            webView.evaluateJavascript(
-                "(function(){try{return (document.documentElement&&document.documentElement.outerHTML?document.documentElement.outerHTML.length:0);}catch(e){return -1;}})();"
-            ) { result ->
-                val len = result?.replace("\"", "")?.trim()?.toIntOrNull() ?: -1
-                if (generation == blankCheckGeneration && len in 0..120 && isEntryUrl(url)) {
-                    if (!tryAlternateHost()) {
-                        showLocalError(
-                            "Sunucudan boş içerik geldi",
-                            "Sunucu bağlantıyı kabul etti ancak HTML içeriği boş. Telefon tarayıcında çalışan aynı adresi açmak için Tarayıcıda Aç düğmesini kullanabilirsiniz."
-                        )
-                    }
-                }
-            }
-        }, 1800L)
-    }
-
-    private fun handleMainFrameFailure(detail: String, failingUrl: String?) {
-        progressBar.visibility = View.GONE
-        if (isEntryUrl(failingUrl.orEmpty()) && tryAlternateHost()) return
-        showLocalError("Sayfa yüklenemedi", detail)
-    }
-
-    private fun tryAlternateHost(): Boolean {
-        if (alternateHostTried) return false
-        alternateHostTried = true
-        webView.loadUrl(ALT_URL, mapOf("Accept-Language" to "tr-TR,tr;q=0.9,en;q=0.7"))
-        Toast.makeText(this, "Alternatif okul adresi deneniyor…", Toast.LENGTH_SHORT).show()
-        return true
-    }
-
-    private fun isEntryUrl(url: String): Boolean {
-        return try {
-            val uri = Uri.parse(url)
-            val p = uri.path.orEmpty().trimEnd('/')
-            uri.host?.lowercase() in INTERNAL_HOSTS && (p == "/izin" || p == "/izin/index.php")
-        } catch (_: Exception) {
-            false
-        }
-    }
-
-    private fun showLocalError(title: String, detail: String) {
-        progressBar.visibility = View.GONE
-        errorTitle.text = title
-        errorDetail.text = detail
-        errorPanel.visibility = View.VISIBLE
-        errorPanel.bringToFront()
-    }
-
-    private fun hideError() {
-        errorPanel.visibility = View.GONE
-        progressBar.bringToFront()
     }
 
     private fun openExternal(url: String) {
-        try {
-            startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
-        } catch (_: Exception) {
-            Toast.makeText(this, "Telefon tarayıcısı açılamadı.", Toast.LENGTH_LONG).show()
-        }
-    }
-
-    private fun handleBack() {
-        if (errorPanel.visibility == View.VISIBLE) {
-            hideError()
-            if (webView.url.isNullOrBlank()) webView.loadUrl(START_URL) else webView.reload()
-        } else if (webView.canGoBack()) {
-            webView.goBack()
-        } else {
-            finish()
-        }
+        try { startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) }
+        catch (_: Exception) { Toast.makeText(this, "Telefon tarayıcısı açılamadı.", Toast.LENGTH_SHORT).show() }
     }
 
     override fun onSaveInstanceState(outState: Bundle) {
@@ -558,24 +541,22 @@ class IzinActivity : AppCompatActivity() {
         super.onSaveInstanceState(outState)
     }
 
-    override fun onResume() {
-        super.onResume()
-        CookieManager.getInstance().flush()
+    @Deprecated("Deprecated in Java")
+    override fun onBackPressed() {
+        if (webView.canGoBack() && !showingLocalError) webView.goBack() else finish()
     }
 
     override fun onDestroy() {
-        blankCheckGeneration++
+        handler.removeCallbacksAndMessages(null)
+        CookieManager.getInstance().flush()
         fileCallback?.onReceiveValue(null)
         fileCallback = null
         webView.stopLoading()
+        webView.webChromeClient = null
+        webView.webViewClient = null
         webView.destroy()
         super.onDestroy()
     }
 
-    @Deprecated("Deprecated in Java")
-    override fun onBackPressed() {
-        handleBack()
-    }
-
-    private fun dp(value: Int): Int = (value * resources.displayMetrics.density).toInt()
+    private fun dp(value: Int): Int = (value * resources.displayMetrics.density + .5f).toInt()
 }
