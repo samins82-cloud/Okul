@@ -35,7 +35,8 @@ import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
-import com.elak.okulum.izin.IzinActivity
+import com.elak.okulum.auth.SecureOkulumCredentials
+import com.elak.okulum.izin.IzinActivity88
 import com.elak.okulum.rehber.CallerCache
 import com.elak.okulum.rehber.RehberActivity81
 import com.elak.okulum.rehber.RehberApi
@@ -109,8 +110,8 @@ class MainActivity : AppCompatActivity() {
             val u = username.orEmpty().trim(); val p = password.orEmpty()
             if (u.isBlank() || p.isBlank()) return
 
-            // ELAK Okulum'daki tek giriş hesabını modüller için Android Keystore ile şifreli sakla.
             OkulumSession(this@MainActivity).saveCredentials(u, p)
+            SecureOkulumCredentials(this@MainActivity).save(u, p)
 
             thread {
                 try {
@@ -157,7 +158,7 @@ class MainActivity : AppCompatActivity() {
                     startActivity(Intent(this@MainActivity, RehberActivity81::class.java)); return true
                 }
                 if ((scheme == "http" || scheme == "https") && host in setOf("elak.mcoaihl.com", "mcoaihl.com", "www.mcoaihl.com") && path.startsWith("/izin")) {
-                    startActivity(Intent(this@MainActivity, IzinActivity::class.java).putExtra(IzinActivity.EXTRA_URL, uri.toString()))
+                    startActivity(Intent(this@MainActivity, IzinActivity88::class.java).putExtra(IzinActivity88.EXTRA_URL, uri.toString()))
                     return true
                 }
                 if ((scheme == "http" || scheme == "https") && host in INTERNAL_HOSTS) return false
