@@ -14,7 +14,8 @@ object PhotoStore {
         if (studentId <= 0) return null
         val target = file(context, studentId, version)
         if (target.exists() && target.length() > 0) {
-            return try { target.readBytes() } catch (_: Exception) { null }
+            val freshEnough = version > 0L || (System.currentTimeMillis() - target.lastModified()) < 60L * 60L * 1000L
+            if (freshEnough) return try { target.readBytes() } catch (_: Exception) { null }
         }
         val bytes = RehberApi.photoBytes(token, studentId, version) ?: return null
         return try {
@@ -32,7 +33,13 @@ object PhotoStore {
         }
     }
 
-    fun trim(context: Context, maxFiles: Int = 250) {
+    fun invalidateUnversioned(context: Context) {
+        dir(context).listFiles()?.filter { it.name.endsWith("_0.img") }?.forEach {
+            try { it.delete() } catch (_: Exception) {}
+        }
+    }
+
+    fun trim(context: Context, maxFiles: Int = 300) {
         val files = dir(context).listFiles()?.sortedByDescending { it.lastModified() } ?: return
         files.drop(maxFiles).forEach { try { it.delete() } catch (_: Exception) {} }
     }
