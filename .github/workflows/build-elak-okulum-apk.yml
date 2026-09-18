@@ -47,10 +47,6 @@ jobs:
         working-directory: elak-okulum/android
         run: python3 patch_v086.py
 
-      - name: Apply Izin integration patch
-        working-directory: elak-okulum/android
-        run: python3 patch_v087.py
-
       - name: Build debug APK
         working-directory: elak-okulum/android
         run: gradle :app:assembleDebug --stacktrace
@@ -61,23 +57,23 @@ jobs:
 
       - name: Prepare APK files
         run: |
-          cp elak-okulum/android/app/build/outputs/apk/debug/app-debug.apk ELAK-Okulum-v0.8.7-debug.apk
-          cp elak-okulum/android/app/build/outputs/apk/release/app-release-unsigned.apk ELAK-Okulum-v0.8.7-release-unsigned.apk
+          cp elak-okulum/android/app/build/outputs/apk/debug/app-debug.apk ELAK-Okulum-v0.8.8-debug.apk
+          cp elak-okulum/android/app/build/outputs/apk/release/app-release-unsigned.apk ELAK-Okulum-v0.8.8-release-unsigned.apk
           cp "$ANDROID_HOME/build-tools/35.0.0/lib/apksigner.jar" apksigner.jar
 
       - name: Upload debug APK
         uses: actions/upload-artifact@v4
         with:
-          name: ELAK-Okulum-v0.8.7-debug
-          path: ELAK-Okulum-v0.8.7-debug.apk
+          name: ELAK-Okulum-v0.8.8-debug
+          path: ELAK-Okulum-v0.8.8-debug.apk
           if-no-files-found: error
           retention-days: 30
 
       - name: Upload unsigned release APK
         uses: actions/upload-artifact@v4
         with:
-          name: ELAK-Okulum-v0.8.7-release-unsigned
-          path: ELAK-Okulum-v0.8.7-release-unsigned.apk
+          name: ELAK-Okulum-v0.8.8-release-unsigned
+          path: ELAK-Okulum-v0.8.8-release-unsigned.apk
           if-no-files-found: error
           retention-days: 30
 
