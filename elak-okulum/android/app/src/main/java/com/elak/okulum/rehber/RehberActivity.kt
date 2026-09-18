@@ -371,24 +371,24 @@ class RehberActivity : AppCompatActivity() {
         row.addView(photo, LinearLayout.LayoutParams(dp(52), dp(52)))
         if (student.hasPhoto) loadPhoto(photo, student.id, student.photoVersion)
 
-        val text = LinearLayout(this).apply {
+        val textBox = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(10), 0, dp(5), 0)
         }
-        text.addView(TextView(this).apply {
+        textBox.addView(TextView(this).apply {
             this.text = student.name.ifBlank { "Öğrenci" }
             textSize = if (card) 16f else 15f
             setTextColor(ink)
             setTypeface(typeface, Typeface.BOLD)
             maxLines = 1
         })
-        text.addView(TextView(this).apply {
+        textBox.addView(TextView(this).apply {
             this.text = listOf(student.className, if (student.schoolNo.isNotBlank()) "No: " + student.schoolNo else "").filter { it.isNotBlank() }.joinToString("  ·  ")
             textSize = 11.5f
             setTextColor(Color.rgb(95, 112, 132))
             maxLines = 1
         })
-        row.addView(text, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+        row.addView(textBox, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
         if (student.phone.isNotBlank()) {
             row.addView(actionSquare("☎", blue) { dial(student.phone) })
             row.addView(actionSquare("W", green) { whatsapp(student.phone) })
@@ -423,24 +423,24 @@ class RehberActivity : AppCompatActivity() {
         }
         row.addView(badge, LinearLayout.LayoutParams(dp(48), dp(48)))
 
-        val text = LinearLayout(this).apply {
+        val textBox = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(10), 0, dp(4), 0)
         }
-        text.addView(TextView(this).apply {
+        textBox.addView(TextView(this).apply {
             this.text = g.name.ifBlank { g.relationship.ifBlank { "Veli" } }
             textSize = 15.5f
             setTextColor(ink)
             setTypeface(typeface, Typeface.BOLD)
             maxLines = 1
         })
-        text.addView(TextView(this).apply {
+        textBox.addView(TextView(this).apply {
             this.text = listOf(g.relationship, g.studentName, g.className, if (g.schoolNo.isNotBlank()) "No: " + g.schoolNo else "").filter { it.isNotBlank() }.joinToString(" · ")
             textSize = 11f
             setTextColor(Color.rgb(95, 112, 132))
             maxLines = 2
         })
-        row.addView(text, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+        row.addView(textBox, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
         if (g.phone.isNotBlank()) {
             row.addView(actionSquare("☎", blue) { dial(g.phone) })
             row.addView(actionSquare("W", green) { whatsapp(g.phone) })
