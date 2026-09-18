@@ -20,6 +20,10 @@
             android:name=".rehber.RehberActivity"
             android:exported="false" />
 
+        <activity
+            android:name=".rehber.RehberActivity81"
+            android:exported="false" />
+
         <service
             android:name=".rehber.CallerIdService"
             android:permission="android.permission.BIND_SCREENING_SERVICE"
