@@ -424,7 +424,7 @@ class CallerCache(context: Context) :
             while (c.moveToNext()) {
                 val s = Student(c.getLong(0), c.getString(1).orEmpty(), c.getString(2).orEmpty(), c.getString(3).orEmpty(), c.getString(4).orEmpty(), c.getInt(5) == 1, c.getLong(6), c.getInt(7) == 1)
                 if (classFilter.isNotBlank() && s.className != classFilter) continue
-                if (q.isNotBlank() && listOf(s.name, s.schoolNo, s.className, s.phone).none { it.lowercase(locale).contains(q) }) continue
+                if (q.isNotBlank() && !matchesQuery(q, listOf(s.name, s.className), s.schoolNo, s.phone)) continue
                 out.add(s)
             }
         }
@@ -453,7 +453,7 @@ class CallerCache(context: Context) :
             while (c.moveToNext()) {
                 val g = Guardian(c.getLong(0), c.getLong(1), c.getString(2).orEmpty(), c.getString(3).orEmpty(), c.getString(4).orEmpty(), c.getString(5).orEmpty(), c.getString(6).orEmpty(), c.getString(7).orEmpty())
                 if (classFilter.isNotBlank() && g.className != classFilter) continue
-                if (q.isNotBlank() && listOf(g.name, g.relationship, g.phone, g.studentName, g.schoolNo, g.className).none { it.lowercase(locale).contains(q) }) continue
+                if (q.isNotBlank() && !matchesQuery(q, listOf(g.name, g.relationship, g.studentName, g.className), g.schoolNo, g.phone)) continue
                 out.add(g)
             }
         }
@@ -568,6 +568,24 @@ class CallerCache(context: Context) :
             }
         }
         return false
+    }
+
+    private fun matchesQuery(qRaw: String, textValues: List<String>, schoolNo: String, phone: String): Boolean {
+        val locale = Locale.forLanguageTag("tr-TR")
+        val q = qRaw.trim().lowercase(locale)
+        if (q.isBlank()) return true
+        if (q.all { it.isDigit() }) {
+            if (schoolNo.trim() == q) return true
+            val normalizedPhone = PhoneUtil.normalize(phone)
+            val normalizedQuery = PhoneUtil.normalize(q)
+            return normalizedQuery.length >= 10 && normalizedPhone == normalizedQuery
+        }
+        return textValues.any { value ->
+            value.lowercase(locale)
+                .split(Regex("[^\\p{L}\\p{N}]+"))
+                .filter { it.isNotBlank() }
+                .any { word -> word.startsWith(q) }
+        }
     }
 
     private fun firstArray(o: JSONObject, vararg keys: String): JSONArray? {
