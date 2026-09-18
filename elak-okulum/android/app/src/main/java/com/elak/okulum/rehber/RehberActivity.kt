@@ -698,7 +698,7 @@ class RehberActivity : AppCompatActivity() {
         d.show()
         d.window?.setLayout((resources.displayMetrics.widthPixels * .96).toInt(), (resources.displayMetrics.heightPixels * .78).toInt())
         thread {
-            val bytes = RehberApi.photoBytes(token, student.id, student.photoVersion) ?: return@thread
+            val bytes = PhotoStore.get(this, token, student.id, student.photoVersion) ?: return@thread
             val bm = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
             runOnUiThread { image.setImageBitmap(bm) }
         }
@@ -707,7 +707,7 @@ class RehberActivity : AppCompatActivity() {
     private fun loadPhoto(image: ImageView, studentId: Long, version: Long) {
         val token = session.token ?: return
         thread {
-            val bytes = RehberApi.photoBytes(token, studentId, version) ?: return@thread
+            val bytes = PhotoStore.get(this, token, studentId, version) ?: return@thread
             val bm = BitmapFactory.decodeByteArray(bytes, 0, bytes.size) ?: return@thread
             runOnUiThread { if (!isFinishing) image.setImageBitmap(bm) }
         }
