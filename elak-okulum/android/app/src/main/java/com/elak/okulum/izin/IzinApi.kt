@@ -10,7 +10,7 @@ import java.net.URLEncoder
 
 object IzinApi {
     private const val BASE = "https://www.mcoaihl.com/izin/"
-    private const val UA = "ELAK-Okulum/0.8.11 Android"
+    private const val UA = "ELAK-Okulum/0.8.12 Android"
 
     data class LoginResult(
         val cookie: String,
@@ -60,6 +60,9 @@ object IzinApi {
     }
 
     fun dashboard(session: IzinSession): JSONObject = requestJson(session, "dashboard")
+
+    fun students(session: IzinSession, query: String = ""): JSONArray =
+        requestJson(session, "students", "&q=${enc(query)}").optJSONArray("students") ?: JSONArray()
 
     fun studentSearch(session: IzinSession, query: String): JSONArray =
         requestJson(session, "student_search", "&q=${enc(query)}").optJSONArray("students") ?: JSONArray()
@@ -113,7 +116,7 @@ object IzinApi {
             throw IllegalStateException("İzin Takip oturumu sona erdi.")
         }
         if (code !in 200..299 || (json.has("ok") && !json.optBoolean("ok", false))) {
-            throw IllegalStateException(json.optString("message", "İşlem başarısız (HTTP $code)."))
+            throw IllegalStateException(json.optString("message", json.optString("error", "İşlem başarısız (HTTP $code).")))
         }
         return json
     }
