@@ -7,35 +7,35 @@ class IzinSession(context: Context) {
 
     var cookie: String
         get() = prefs.getString("cookie", "").orEmpty()
-        set(value) = prefs.edit().putString("cookie", value).apply()
+        set(value) { prefs.edit().putString("cookie", value).apply() }
 
     var csrf: String
         get() = prefs.getString("csrf", "").orEmpty()
-        set(value) = prefs.edit().putString("csrf", value).apply()
+        set(value) { prefs.edit().putString("csrf", value).apply() }
 
     var role: String
         get() = prefs.getString("role", "").orEmpty()
-        set(value) = prefs.edit().putString("role", value).apply()
+        set(value) { prefs.edit().putString("role", value).apply() }
 
     var fullName: String
         get() = prefs.getString("full_name", "").orEmpty()
-        set(value) = prefs.edit().putString("full_name", value).apply()
+        set(value) { prefs.edit().putString("full_name", value).apply() }
 
     var username: String
         get() = prefs.getString("username", "").orEmpty()
-        set(value) = prefs.edit().putString("username", value).apply()
+        set(value) { prefs.edit().putString("username", value).apply() }
 
     var adminAccess: String
         get() = prefs.getString("admin_access", "").orEmpty()
-        set(value) = prefs.edit().putString("admin_access", value).apply()
+        set(value) { prefs.edit().putString("admin_access", value).apply() }
 
     var schoolScope: String
         get() = prefs.getString("school_scope", "both").orEmpty().ifBlank { "both" }
-        set(value) = prefs.edit().putString("school_scope", value).apply()
+        set(value) { prefs.edit().putString("school_scope", value).apply() }
 
     var permissionsCsv: String
         get() = prefs.getString("permissions", "").orEmpty()
-        set(value) = prefs.edit().putString("permissions", value).apply()
+        set(value) { prefs.edit().putString("permissions", value).apply() }
 
     val permissions: Set<String>
         get() = permissionsCsv.split(',').map { it.trim() }.filter { it.isNotEmpty() }.toSet()
