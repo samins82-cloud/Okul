@@ -10,7 +10,7 @@ import java.net.URLEncoder
 
 object IzinApi {
     private const val BASE = "https://www.mcoaihl.com/izin/"
-    private const val UA = "ELAK-Okulum/0.8.9 Android"
+    private const val UA = "ELAK-Okulum/0.8.11 Android"
 
     data class LoginResult(
         val cookie: String,
