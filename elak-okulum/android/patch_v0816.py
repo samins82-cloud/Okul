@@ -34,7 +34,7 @@ new_block = r'''    private fun showStudents() {
         fun classSig(value:String):String {
             val v=value.trim().uppercase(java.util.Locale.forLanguageTag("tr-TR"))
             val grade=Regex("""(?:^|[^0-9])(5|6|7|8|9|10|11|12)(?:[^0-9]|$)""").find(v)?.groupValues?.getOrNull(1).orEmpty()
-            val section=Regex("""[/\\-\\s]([A-ZÇĞİÖŞÜ])(?:\\s*ŞUBESİ)?\\s*$""").find(v)?.groupValues?.getOrNull(1).orEmpty()
+            val section=Regex("""[/\-\s]([A-ZÇĞİÖŞÜ])(?:\s*ŞUBESİ)?\s*$""").find(v)?.groupValues?.getOrNull(1).orEmpty()
             return if(grade.isNotBlank() && section.isNotBlank()) "$grade/$section" else ""
         }
 
@@ -119,7 +119,7 @@ new_block = r'''    private fun showStudents() {
     }
 
     private fun showNewPermission() {'''
-s, n = pat.subn(new_block, s, count=1)
+s, n = pat.subn(lambda _m: new_block, s, count=1)
 if n != 1:
     raise SystemExit("showStudents marker missing")
 
