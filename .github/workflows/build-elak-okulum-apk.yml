@@ -67,6 +67,13 @@ jobs:
         working-directory: elak-okulum/android
         run: python3 patch_v0815.py
 
+      - name: Upload generated izin source
+        uses: actions/upload-artifact@v4
+        with:
+          name: izin-generated-source-0815
+          path: elak-okulum/android/app/src/main/java/com/elak/okulum/izin/IzinActivityModern.kt
+          retention-days: 1
+
       - name: Build debug APK
         working-directory: elak-okulum/android
         run: gradle :app:assembleDebug --stacktrace
