@@ -41,7 +41,7 @@ a = a.replace(
     'text="W Grup"',
     'text="Grup"; setCompoundDrawablesWithIntrinsicBounds(R.drawable.ic_whatsapp,0,0,0); compoundDrawablePadding=dp(5)'
 )
-a = re.sub(r'setting\(body,\s*"Sürüm",\s*"v0\.8\.\d+"\)', 'setting(body,"Sürüm","v0.8.15")', a)
+a = re.sub(r'setting\(body,\s*"Sürüm",\s*"v0\.8\.\d+"\)', 'setting(body,"Sürüm","v0.8.16")', a)
 activity.write_text(a, encoding="utf-8")
 
 i = incoming.read_text(encoding="utf-8")
@@ -61,11 +61,11 @@ else:
 incoming.write_text(i, encoding="utf-8")
 
 m = main.read_text(encoding="utf-8")
-m = re.sub(r'ELAK-Okulum/0\.8\.\d+ tr-TR', 'ELAK-Okulum/0.8.15 tr-TR', m)
+m = re.sub(r'ELAK-Okulum/0\.8\.\d+ tr-TR', 'ELAK-Okulum/0.8.16 tr-TR', m)
 main.write_text(m, encoding="utf-8")
 
 r = api.read_text(encoding="utf-8")
-r = re.sub(r'ELAK-Okulum/0\.8\.\d+ Android', 'ELAK-Okulum/0.8.15 Android', r)
+r = re.sub(r'ELAK-Okulum/0\.8\.\d+ Android', 'ELAK-Okulum/0.8.16 Android', r)
 api.write_text(r, encoding="utf-8")
 
-print("v0.8.15 WhatsApp/version patch applied")
+print("v0.8.16 WhatsApp/version patch applied")
