@@ -51,6 +51,10 @@ jobs:
         working-directory: elak-okulum/android
         run: python3 patch_v088.py
 
+      - name: Apply Izin SSO login button patch
+        working-directory: elak-okulum/android
+        run: python3 patch_v088_loginbutton.py
+
       - name: Build debug APK
         working-directory: elak-okulum/android
         run: gradle :app:assembleDebug --stacktrace
