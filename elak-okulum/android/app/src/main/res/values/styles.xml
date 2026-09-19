@@ -2,5 +2,11 @@
     <style name="Theme.ELAKOkulum" parent="Theme.MaterialComponents.DayNight.NoActionBar">
         <item name="android:fontFamily">sans</item>
         <item name="android:windowLightStatusBar">false</item>
+        <item name="android:statusBarColor">#091E42</item>
+        <item name="android:navigationBarColor">#FFFFFF</item>
+        <item name="android:windowLightNavigationBar">true</item>
+        <!-- Android 15 / targetSdk 35: native ekranların durum ve gezinme
+             çubuklarının arkasına taşmasını engeller. -->
+        <item name="android:windowOptOutEdgeToEdgeEnforcement">true</item>
     </style>
 </resources>
