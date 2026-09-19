@@ -7,7 +7,6 @@ incoming = ROOT / "app/src/main/java/com/elak/okulum/rehber/IncomingCallerActivi
 main = ROOT / "app/src/main/java/com/elak/okulum/MainActivity.kt"
 api = ROOT / "app/src/main/java/com/elak/okulum/rehber/RehberApi.kt"
 
-# Replace letter/text placeholders with the recognizable WhatsApp mark.
 a = activity.read_text(encoding="utf-8")
 a = a.replace('squareAction("W", green)', 'whatsappAction')
 a = a.replace('squareAction("◉", green)', 'whatsappAction')
@@ -42,10 +41,9 @@ a = a.replace(
     'text="W Grup"',
     'text="Grup"; setCompoundDrawablesWithIntrinsicBounds(R.drawable.ic_whatsapp,0,0,0); compoundDrawablePadding=dp(5)'
 )
-a = re.sub(r'setting\(body,\s*"Sürüm",\s*"v0\.8\.\d+"\)', 'setting(body,"Sürüm","v0.8.14")', a)
+a = re.sub(r'setting\(body,\s*"Sürüm",\s*"v0\.8\.\d+"\)', 'setting(body,"Sürüm","v0.8.15")', a)
 activity.write_text(a, encoding="utf-8")
 
-# Put the WhatsApp icon beside the full-width incoming-call action as well.
 i = incoming.read_text(encoding="utf-8")
 if "import com.elak.okulum.R" not in i:
     package_line = "package com.elak.okulum.rehber\n"
@@ -62,13 +60,12 @@ else:
     )
 incoming.write_text(i, encoding="utf-8")
 
-# Keep network user-agents aligned with the app version.
 m = main.read_text(encoding="utf-8")
-m = re.sub(r'ELAK-Okulum/0\.8\.\d+ tr-TR', 'ELAK-Okulum/0.8.14 tr-TR', m)
+m = re.sub(r'ELAK-Okulum/0\.8\.\d+ tr-TR', 'ELAK-Okulum/0.8.15 tr-TR', m)
 main.write_text(m, encoding="utf-8")
 
 r = api.read_text(encoding="utf-8")
-r = re.sub(r'ELAK-Okulum/0\.8\.\d+ Android', 'ELAK-Okulum/0.8.14 Android', r)
+r = re.sub(r'ELAK-Okulum/0\.8\.\d+ Android', 'ELAK-Okulum/0.8.15 Android', r)
 api.write_text(r, encoding="utf-8")
 
-print("v0.8.14 WhatsApp/version patch applied")
+print("v0.8.15 WhatsApp/version patch applied")
