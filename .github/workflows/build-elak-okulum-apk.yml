@@ -28,7 +28,7 @@ jobs:
 
       - name: Accept Android SDK licenses
         run: |
-          yes "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses >/dev/null || true
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses >/dev/null || true
 
       - name: Install Android 35
         run: |
