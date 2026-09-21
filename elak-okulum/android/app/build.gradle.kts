@@ -8,7 +8,7 @@ android {
         applicationId = "com.elak.okulum"
         minSdk = 24
         targetSdk = 35
-        versionCode = 36
+        versionCode = 37
         versionName = "0.9.2"
     }
 
