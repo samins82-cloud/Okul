@@ -5,6 +5,9 @@ on:
   push:
     paths:
       - 'elak-okulum/android/**'
+      - 'elak-okulum/server/mobile-push.php'
+      - 'elak-okulum/server/push-admin.php'
+      - 'elak-okulum/server/PUSH_0_9_3_1_KURULUM.md'
       - '.github/workflows/build-elak-okulum-apk.yml'
 
 permissions:
@@ -114,6 +117,14 @@ jobs:
           cp elak-okulum/android/app/build/outputs/apk/release/app-release-unsigned.apk ELAK-Okulum-v0.9.3.1-release-unsigned.apk
           cp "$ANDROID_HOME/build-tools/35.0.0/lib/apksigner.jar" apksigner.jar
 
+      - name: Prepare push server package
+        run: |
+          mkdir -p ELAK-PUSH-0.9.3.1
+          cp elak-okulum/server/mobile-push.php ELAK-PUSH-0.9.3.1/
+          cp elak-okulum/server/push-admin.php ELAK-PUSH-0.9.3.1/
+          cp elak-okulum/server/PUSH_0_9_3_1_KURULUM.md ELAK-PUSH-0.9.3.1/OKU-BENI.md
+          zip -qr ELAK-PUSH-0.9.3.1-SUNUCU.zip ELAK-PUSH-0.9.3.1
+
       - name: Upload debug APK
         uses: actions/upload-artifact@v4
         with:
@@ -127,6 +138,14 @@ jobs:
         with:
           name: ELAK-Okulum-v0.9.3.1-release-unsigned
           path: ELAK-Okulum-v0.9.3.1-release-unsigned.apk
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Upload push server package
+        uses: actions/upload-artifact@v4
+        with:
+          name: ELAK-PUSH-0.9.3.1-SUNUCU
+          path: ELAK-PUSH-0.9.3.1-SUNUCU.zip
           if-no-files-found: error
           retention-days: 30
 
