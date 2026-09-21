@@ -73,6 +73,10 @@ class OkulumSession(context: Context) {
         get() = prefs.getString("links_json", "[]").orEmpty().ifBlank { "[]" }
         set(value) { prefs.edit().putString("links_json", value).apply() }
 
+    var modulesJson: String
+        get() = prefs.getString("modules_json", "[]").orEmpty().ifBlank { "[]" }
+        set(value) { prefs.edit().putString("modules_json", value).apply() }
+
     val roles: Set<String>
         get() = rolesCsv.split(',').map { it.trim() }.filter { it.isNotBlank() }.toSet()
             .ifEmpty { setOfNotNull(role.takeIf { it.isNotBlank() }) }
@@ -94,6 +98,14 @@ class OkulumSession(context: Context) {
 
     val linkedClasses: List<JSONObject>
         get() = linked("class")
+
+    val centralModules: List<JSONObject>
+        get() {
+            val out = mutableListOf<JSONObject>()
+            val arr = try { JSONArray(modulesJson) } catch (_: Exception) { JSONArray() }
+            for (i in 0 until arr.length()) arr.optJSONObject(i)?.let { out += it }
+            return out
+        }
 
     fun can(permission: String): Boolean = permissions.contains("*") || permissions.contains(permission)
 
@@ -128,21 +140,13 @@ class OkulumSession(context: Context) {
             .putString("school_scope", schoolScope.trim().ifBlank { "both" })
             .putString("school_code", schoolCode.trim().uppercase())
             .putString("school_name_enc", LocalCrypto.encrypt(schoolName.trim()))
+            .putString("modules_json", "[]")
             .putBoolean("central_enabled", false)
             .apply()
     }
 
     fun saveCentral(username: String, password: String, auth: CentralApi.AuthResult) {
         val profile = auth.profile
-        val links = JSONArray()
-        profile.links.forEach { link ->
-            links.put(JSONObject()
-                .put("type", link.type)
-                .put("external_id", link.externalId)
-                .put("label", link.label)
-                .put("school_scope", link.schoolScope)
-                .put("meta", try { JSONObject(link.metaJson) } catch (_: Exception) { JSONObject() }))
-        }
         prefs.edit()
             .putString("username_enc", LocalCrypto.encrypt(username.trim()))
             .putString("password_enc", LocalCrypto.encrypt(password))
@@ -155,7 +159,8 @@ class OkulumSession(context: Context) {
             .putString("school_short_name_enc", LocalCrypto.encrypt(profile.schoolShortName.trim()))
             .putString("school_logo_url", profile.schoolLogoUrl.trim())
             .putString("permissions_csv", profile.permissions.joinToString(","))
-            .putString("links_json", links.toString())
+            .putString("links_json", linksArray(profile).toString())
+            .putString("modules_json", modulesArray(profile).toString())
             .putString("central_access_enc", LocalCrypto.encrypt(auth.accessToken))
             .putString("central_refresh_enc", LocalCrypto.encrypt(auth.refreshToken))
             .putLong("central_access_expires_at", System.currentTimeMillis() + auth.expiresIn * 1000L)
@@ -173,15 +178,6 @@ class OkulumSession(context: Context) {
     }
 
     fun updateCentralProfile(profile: CentralApi.Profile) {
-        val links = JSONArray()
-        profile.links.forEach { link ->
-            links.put(JSONObject()
-                .put("type", link.type)
-                .put("external_id", link.externalId)
-                .put("label", link.label)
-                .put("school_scope", link.schoolScope)
-                .put("meta", try { JSONObject(link.metaJson) } catch (_: Exception) { JSONObject() }))
-        }
         prefs.edit()
             .putString("display_name_enc", LocalCrypto.encrypt(profile.name.trim()))
             .putString("role", profile.primaryRole.trim())
@@ -192,8 +188,40 @@ class OkulumSession(context: Context) {
             .putString("school_short_name_enc", LocalCrypto.encrypt(profile.schoolShortName.trim()))
             .putString("school_logo_url", profile.schoolLogoUrl.trim())
             .putString("permissions_csv", profile.permissions.joinToString(","))
-            .putString("links_json", links.toString())
+            .putString("links_json", linksArray(profile).toString())
+            .putString("modules_json", modulesArray(profile).toString())
             .apply()
+    }
+
+    private fun linksArray(profile: CentralApi.Profile): JSONArray {
+        val links = JSONArray()
+        profile.links.forEach { link ->
+            links.put(JSONObject()
+                .put("type", link.type)
+                .put("external_id", link.externalId)
+                .put("label", link.label)
+                .put("school_scope", link.schoolScope)
+                .put("meta", try { JSONObject(link.metaJson) } catch (_: Exception) { JSONObject() }))
+        }
+        return links
+    }
+
+    private fun modulesArray(profile: CentralApi.Profile): JSONArray {
+        val modules = JSONArray()
+        profile.modules.forEach { module ->
+            modules.put(JSONObject()
+                .put("key", module.key)
+                .put("title", module.title)
+                .put("description", module.description)
+                .put("category", module.category)
+                .put("icon", module.icon)
+                .put("color", module.color)
+                .put("type", module.type)
+                .put("url", module.url)
+                .put("sso", module.sso)
+                .put("can_manage", module.canManage))
+        }
+        return modules
     }
 
     private fun linked(type: String): List<JSONObject> {
