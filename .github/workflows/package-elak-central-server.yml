@@ -1,11 +1,13 @@
-name: Package ELAK Central Server
+name: Package ELAK CORE Push Add-on
 
 on:
   workflow_dispatch:
   push:
     paths:
-      - 'elak-okulum/server/**'
-      - 'elak-okulum/database/**'
+      - 'elak-okulum/server/mobile-push.php'
+      - 'elak-okulum/server/push-admin.php'
+      - 'elak-okulum/server/PUSH_0_9_3_1_KURULUM.md'
+      - 'elak-okulum/server/prepare_push_package.py'
       - '.github/workflows/package-elak-central-server.yml'
 
 permissions:
@@ -18,32 +20,18 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Prepare hosting package
+      - name: Prepare safe CORE push add-on
         run: |
-          rm -rf package
-          mkdir -p package/server package/database
-          cp -a elak-okulum/server/. package/server/
-          cp -a elak-okulum/database/. package/database/
-          cat > package/KURULUM.txt <<'EOF'
-          ELAK OKULUM 0.9.2 MERKEZI SUNUCU
+          rm -rf ELAK-PUSH-0.9.3.1
+          python3 elak-okulum/server/prepare_push_package.py ELAK-PUSH-0.9.3.1
+          php -l ELAK-PUSH-0.9.3.1/mobile-push.php
+          php -l ELAK-PUSH-0.9.3.1/push-admin.php
+          zip -qr ELAK-PUSH-0.9.3.1-SUNUCU.zip ELAK-PUSH-0.9.3.1
 
-          1) Bu paketteki server ve database klasorlerini proje kokune yukleyin.
-          2) elak.mcoaihl.com web document root'unu proje kokundeki server klasorune yonlendirin.
-          3) Tarayicida https://elak.mcoaihl.com/install.php adresini acin.
-          4) MySQL bilgilerini ve merkezi yonetici hesabini girerek kurulumu tamamlayin.
-          5) Merkezi yonetimde ilk okul olarak 759975 koduyla Mahmud Celaleddin Okten AIHL kaydini ve okul yoneticisini olusturun.
-          6) Kurulumdan sonra install.php dosyasini silin.
-          7) API testi: https://elak.mcoaihl.com/api/v1/index.php?r=health
-
-          NOT: Mobil uygulamada 759975 ve MCOAIHL kodlari MCOAIHL gecis doneminde esdeger kabul edilir.
-          EOF
-          cd package
-          zip -r ../ELAK-Central-Server-0.9.2.zip .
-
-      - name: Upload package
+      - name: Upload push add-on
         uses: actions/upload-artifact@v4
         with:
-          name: ELAK-Central-Server-0.9.2
-          path: ELAK-Central-Server-0.9.2.zip
+          name: ELAK-PUSH-0.9.3.1-SUNUCU
+          path: ELAK-PUSH-0.9.3.1-SUNUCU.zip
           if-no-files-found: error
           retention-days: 30
