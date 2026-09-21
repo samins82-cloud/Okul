@@ -19,6 +19,7 @@ import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
+import com.elak.okulum.auth.CentralApi
 import com.elak.okulum.auth.SecureOkulumCredentials
 import com.elak.okulum.izin.IzinApi
 import com.elak.okulum.izin.IzinSession
@@ -54,7 +55,7 @@ class LoginActivity : AppCompatActivity() {
         if (session.hasCredentials) {
             username.setText(session.username)
             password.setText(session.password)
-            root.post { authenticate(session.username, session.password, true) }
+            root.post { resumeOrAuthenticate() }
         }
     }
 
@@ -63,7 +64,6 @@ class LoginActivity : AppCompatActivity() {
             orientation = LinearLayout.VERTICAL
             setBackgroundColor(bg)
         }
-
         val scroll = ScrollView(this)
         val page = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -76,40 +76,28 @@ class LoginActivity : AppCompatActivity() {
             setPadding(dp(18), dp(24), dp(18), dp(24))
             background = round(navy, 22)
             addView(TextView(this@LoginActivity).apply {
-                text = "ELAK"
-                textSize = 30f
-                setTextColor(Color.WHITE)
-                setTypeface(typeface, Typeface.BOLD)
-                gravity = Gravity.CENTER
+                text = "ELAK"; textSize = 30f; setTextColor(Color.WHITE)
+                setTypeface(typeface, Typeface.BOLD); gravity = Gravity.CENTER
             })
             addView(TextView(this@LoginActivity).apply {
-                text = "Okulum"
-                textSize = 20f
-                setTextColor(Color.WHITE)
-                setTypeface(typeface, Typeface.BOLD)
-                gravity = Gravity.CENTER
+                text = "Okulum"; textSize = 20f; setTextColor(Color.WHITE)
+                setTypeface(typeface, Typeface.BOLD); gravity = Gravity.CENTER
             })
             addView(TextView(this@LoginActivity).apply {
                 text = "Mahmud Celaleddin Ökten Anadolu İmam Hatip Lisesi"
-                textSize = 12.5f
-                setTextColor(Color.rgb(211, 224, 242))
-                gravity = Gravity.CENTER
+                textSize = 12.5f; setTextColor(Color.rgb(211, 224, 242)); gravity = Gravity.CENTER
                 setPadding(0, dp(8), 0, 0)
             })
         })
 
         page.addView(space(24))
         page.addView(TextView(this).apply {
-            text = "Tek hesapla giriş"
-            textSize = 22f
-            setTextColor(navy)
-            setTypeface(typeface, Typeface.BOLD)
+            text = "Tek ELAK hesabı"
+            textSize = 22f; setTextColor(navy); setTypeface(typeface, Typeface.BOLD)
         })
         page.addView(TextView(this).apply {
-            text = "Akıllı Rehber, İzin Takip ve diğer ELAK modüllerine aynı hesapla erişin."
-            textSize = 13f
-            setTextColor(muted)
-            setPadding(0, dp(5), 0, dp(18))
+            text = "Rolünüz, okul kapsamınız ve modül yetkileriniz girişten sonra otomatik uygulanır."
+            textSize = 13f; setTextColor(muted); setPadding(0, dp(5), 0, dp(18))
         })
 
         username = field("Kullanıcı adı")
@@ -117,55 +105,35 @@ class LoginActivity : AppCompatActivity() {
             inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
         }
         errorText = TextView(this).apply {
-            visibility = View.GONE
-            textSize = 12.5f
-            setTextColor(red)
-            setPadding(dp(12), dp(10), dp(12), dp(10))
-            background = round(Color.rgb(255, 242, 244), 11)
+            visibility = View.GONE; textSize = 12.5f; setTextColor(red)
+            setPadding(dp(12), dp(10), dp(12), dp(10)); background = round(Color.rgb(255, 242, 244), 11)
         }
         progress = ProgressBar(this).apply { visibility = View.GONE }
         loginButton = Button(this).apply {
-            text = "Giriş Yap"
-            isAllCaps = false
-            textSize = 15f
-            setTextColor(Color.WHITE)
+            text = "Giriş Yap"; isAllCaps = false; textSize = 15f; setTextColor(Color.WHITE)
             background = round(blue, 12)
             layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(52))
             setOnClickListener {
                 val u = username.text.toString().trim()
                 val p = password.text.toString()
-                if (u.isBlank() || p.isBlank()) {
-                    showError("Kullanıcı adı ve şifreyi girin.")
-                } else authenticate(u, p, false)
+                if (u.isBlank() || p.isBlank()) showError("Kullanıcı adı ve şifreyi girin.")
+                else authenticate(u, p, false)
             }
         }
         offlineButton = Button(this).apply {
-            text = "Kayıtlı Hesapla Çevrimdışı Devam Et"
-            isAllCaps = false
+            text = "Kayıtlı Hesapla Çevrimdışı Devam Et"; isAllCaps = false
             visibility = if (session.hasIdentity) View.VISIBLE else View.GONE
-            setTextColor(navy)
-            background = round(Color.WHITE, 12, Color.rgb(207, 217, 232))
+            setTextColor(navy); background = round(Color.WHITE, 12, Color.rgb(207, 217, 232))
             layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(48))
-            setOnClickListener { openDashboard() }
+            setOnClickListener { openHome() }
         }
 
-        page.addView(username)
-        page.addView(space(10))
-        page.addView(password)
-        page.addView(space(12))
-        page.addView(errorText)
-        page.addView(space(12))
-        page.addView(loginButton)
-        page.addView(space(10))
-        page.addView(offlineButton)
-        page.addView(space(18))
-        page.addView(progress, LinearLayout.LayoutParams(dp(38), dp(38)).apply { gravity = Gravity.CENTER_HORIZONTAL })
+        page.addView(username); page.addView(space(10)); page.addView(password); page.addView(space(12))
+        page.addView(errorText); page.addView(space(12)); page.addView(loginButton); page.addView(space(10)); page.addView(offlineButton)
+        page.addView(space(18)); page.addView(progress, LinearLayout.LayoutParams(dp(38), dp(38)).apply { gravity = Gravity.CENTER_HORIZONTAL })
         page.addView(TextView(this).apply {
-            text = "ELAK Okulum 0.9.1 · Rol bazlı tek uygulama"
-            textSize = 11f
-            gravity = Gravity.CENTER
-            setTextColor(muted)
-            setPadding(0, dp(22), 0, 0)
+            text = "ELAK Okulum 0.9.2 · Merkezi kullanıcı ve yetki sistemi"
+            textSize = 11f; gravity = Gravity.CENTER; setTextColor(muted); setPadding(0, dp(22), 0, 0)
         })
 
         scroll.addView(page)
@@ -180,32 +148,61 @@ class LoginActivity : AppCompatActivity() {
         }
         ViewCompat.setOnApplyWindowInsetsListener(root) { v, i ->
             val b = i.getInsets(WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout())
-            v.setPadding(b.left, b.top, b.right, b.bottom)
-            i
+            v.setPadding(b.left, b.top, b.right, b.bottom); i
         }
         ViewCompat.requestApplyInsets(root)
+    }
+
+    private fun resumeOrAuthenticate() {
+        setBusy(true)
+        loginButton.text = "Oturum Doğrulanıyor…"
+        thread {
+            if (session.hasCentralSession) {
+                try {
+                    val profile = CentralApi.me(session.accessToken)
+                    session.updateCentralProfile(profile)
+                    runOnUiThread { setBusy(false); openHome() }
+                    return@thread
+                } catch (_: Exception) {
+                    try {
+                        val refreshed = CentralApi.refresh(session.refreshToken)
+                        session.saveRefreshedTokens(refreshed)
+                        session.updateCentralProfile(CentralApi.me(refreshed.accessToken))
+                        runOnUiThread { setBusy(false); openHome() }
+                        return@thread
+                    } catch (_: Exception) {
+                        session.clearCentralOnly()
+                    }
+                }
+            }
+            runOnUiThread { loginButton.text = "Giriş Yap" }
+            authenticate(session.username, session.password, true)
+        }
     }
 
     private fun authenticate(user: String, pass: String, automatic: Boolean) {
         setBusy(true)
         errorText.visibility = View.GONE
-        if (automatic) loginButton.text = "Oturum Doğrulanıyor…"
+        if (automatic) runOnUiThread { loginButton.text = "Oturum Doğrulanıyor…" }
 
         thread {
+            var central: CentralApi.AuthResult? = null
+            try { central = CentralApi.login(user, pass) } catch (_: Exception) { }
+
             var rehber: RehberApi.LoginResult? = null
             var izin: IzinApi.LoginResult? = null
             var rehberError: String? = null
             var izinError: String? = null
 
+            // Eski modüllerin SSO/oturumları 0.9.2 geçiş döneminde de hazırlanır.
             try { rehber = RehberApi.login(user, pass) } catch (e: Exception) { rehberError = e.message }
             try { izin = IzinApi.login(user, pass) } catch (e: Exception) { izinError = e.message }
 
-            if (rehber == null && izin == null) {
+            if (central == null && rehber == null && izin == null) {
                 val message = listOfNotNull(rehberError, izinError).firstOrNull { it.isNotBlank() }
                     ?: "ELAK hesabı doğrulanamadı."
                 runOnUiThread {
-                    setBusy(false)
-                    loginButton.text = "Giriş Yap"
+                    setBusy(false); loginButton.text = "Giriş Yap"
                     offlineButton.visibility = if (session.hasIdentity) View.VISIBLE else View.GONE
                     showError(message)
                 }
@@ -213,70 +210,51 @@ class LoginActivity : AppCompatActivity() {
             }
 
             if (rehber != null) {
-                val rs = RehberSession(this)
-                rs.token = rehber!!.token
-                rs.username = user
+                RehberSession(this).apply { token = rehber!!.token; username = user }
             }
             if (izin != null) IzinSession(this).save(izin!!)
 
-            val displayName = rehber?.userName?.takeIf { it.isNotBlank() }
-                ?: izin?.fullName?.takeIf { it.isNotBlank() }
-                ?: user
-            val role = rehber?.role?.takeIf { it.isNotBlank() }
-                ?: izin?.role?.takeIf { it.isNotBlank() }
-                ?: "user"
-            val scope = rehber?.schoolScope?.takeIf { it.isNotBlank() }
-                ?: izin?.schoolScope?.takeIf { it.isNotBlank() }
-                ?: ""
-
-            session.saveIdentity(user, pass, displayName, role, scope)
-            SecureOkulumCredentials(this).save(user, pass)
-
-            runOnUiThread {
-                setBusy(false)
-                openDashboard()
+            if (central != null) {
+                session.saveCentral(user, pass, central!!)
+            } else {
+                val displayName = rehber?.userName?.takeIf { it.isNotBlank() }
+                    ?: izin?.fullName?.takeIf { it.isNotBlank() } ?: user
+                val role = rehber?.role?.takeIf { it.isNotBlank() }
+                    ?: izin?.role?.takeIf { it.isNotBlank() } ?: "user"
+                val scope = rehber?.schoolScope?.takeIf { it.isNotBlank() }
+                    ?: izin?.schoolScope?.takeIf { it.isNotBlank() } ?: "both"
+                session.saveIdentity(user, pass, displayName, role, scope)
             }
+
+            SecureOkulumCredentials(this).save(user, pass)
+            runOnUiThread { setBusy(false); openHome() }
         }
     }
 
-    private fun openDashboard() {
-        startActivity(Intent(this, DashboardActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP))
+    private fun openHome() {
+        startActivity(Intent(this, ElakHomeActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP))
         finish()
     }
 
     private fun showError(message: String) {
-        errorText.text = message
-        errorText.visibility = View.VISIBLE
+        errorText.text = message; errorText.visibility = View.VISIBLE
     }
 
     private fun setBusy(value: Boolean) {
         progress.visibility = if (value) View.VISIBLE else View.GONE
-        loginButton.isEnabled = !value
-        username.isEnabled = !value
-        password.isEnabled = !value
+        loginButton.isEnabled = !value; username.isEnabled = !value; password.isEnabled = !value
     }
 
     private fun field(hintText: String) = EditText(this).apply {
-        hint = hintText
-        textSize = 15f
-        setTextColor(navy)
-        setHintTextColor(Color.rgb(128, 143, 164))
-        setPadding(dp(14), dp(12), dp(14), dp(12))
-        background = round(Color.WHITE, 12, Color.rgb(210, 220, 233))
+        hint = hintText; textSize = 15f; setTextColor(navy); setHintTextColor(Color.rgb(128, 143, 164))
+        setPadding(dp(14), dp(12), dp(14), dp(12)); background = round(Color.WHITE, 12, Color.rgb(210, 220, 233))
         layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(52))
     }
 
-    private fun space(h: Int) = View(this).apply {
-        layoutParams = LinearLayout.LayoutParams(1, dp(h))
+    private fun space(h: Int) = View(this).apply { layoutParams = LinearLayout.LayoutParams(1, dp(h)) }
+    private fun round(fill: Int, radius: Int, stroke: Int? = null) = android.graphics.drawable.GradientDrawable().apply {
+        shape = android.graphics.drawable.GradientDrawable.RECTANGLE; setColor(fill); cornerRadius = dp(radius).toFloat()
+        if (stroke != null) setStroke(dp(1), stroke)
     }
-
-    private fun round(fill: Int, radius: Int, stroke: Int? = null) =
-        android.graphics.drawable.GradientDrawable().apply {
-            shape = android.graphics.drawable.GradientDrawable.RECTANGLE
-            setColor(fill)
-            cornerRadius = dp(radius).toFloat()
-            if (stroke != null) setStroke(dp(1), stroke)
-        }
-
     private fun dp(v: Int) = (v * resources.displayMetrics.density + .5f).toInt()
 }
