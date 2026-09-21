@@ -12,29 +12,26 @@
         android:roundIcon="@drawable/ic_elak_okulum"
         android:usesCleartextTraffic="false">
 
-        <activity
-            android:name=".izin.IzinActivityModern"
-            android:exported="false"
-            android:launchMode="singleTop" />
+        <activity android:name=".DashboardActivity" android:exported="true" android:launchMode="singleTop">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
 
-        <activity
-            android:name=".izin.IzinActivity"
-            android:exported="false"
-            android:launchMode="singleTop" />
+        <activity android:name=".WebModuleActivity" android:exported="false" />
+        <activity android:name=".MainActivity" android:exported="false" />
 
-        <activity
-            android:name=".izin.IzinActivity88"
-            android:exported="false"
-            android:launchMode="singleTop" />
+        <activity android:name=".izin.IzinActivityModern" android:exported="false" android:launchMode="singleTop" />
+        <activity android:name=".izin.IzinActivity" android:exported="false" android:launchMode="singleTop" />
+        <activity android:name=".izin.IzinActivity88" android:exported="false" android:launchMode="singleTop" />
 
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.fileprovider"
             android:exported="false"
             android:grantUriPermissions="true">
-            <meta-data
-                android:name="android.support.FILE_PROVIDER_PATHS"
-                android:resource="@xml/file_paths" />
+            <meta-data android:name="android.support.FILE_PROVIDER_PATHS" android:resource="@xml/file_paths" />
         </provider>
 
         <activity
@@ -44,7 +41,6 @@
             android:launchMode="singleTop"
             android:showWhenLocked="true"
             android:turnScreenOn="true" />
-
         <activity android:name=".rehber.RehberActivity" android:exported="false" />
         <activity android:name=".rehber.RehberActivity81" android:exported="false" />
         <activity android:name=".rehber.RehberActivity82" android:exported="false" android:launchMode="singleTop" />
@@ -58,12 +54,5 @@
                 <action android:name="android.telecom.CallScreeningService" />
             </intent-filter>
         </service>
-
-        <activity android:name=".MainActivity" android:exported="true">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
-        </activity>
     </application>
 </manifest>
