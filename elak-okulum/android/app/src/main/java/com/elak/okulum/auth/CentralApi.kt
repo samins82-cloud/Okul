@@ -19,6 +19,19 @@ object CentralApi {
         val metaJson: String
     )
 
+    data class Module(
+        val key: String,
+        val title: String,
+        val description: String,
+        val category: String,
+        val icon: String,
+        val color: String,
+        val type: String,
+        val url: String,
+        val sso: Boolean,
+        val canManage: Boolean
+    )
+
     data class Profile(
         val id: Long,
         val username: String,
@@ -28,6 +41,7 @@ object CentralApi {
         val schoolScope: String,
         val permissions: List<String>,
         val links: List<Link>,
+        val modules: List<Module>,
         val schoolName: String,
         val schoolShortName: String,
         val schoolCode: String,
@@ -106,9 +120,9 @@ object CentralApi {
         val roles = stringList(o.optJSONArray("roles"))
         val permissions = stringList(o.optJSONArray("permissions"))
         val links = mutableListOf<Link>()
-        val array = o.optJSONArray("links") ?: JSONArray()
-        for (i in 0 until array.length()) {
-            val item = array.optJSONObject(i) ?: continue
+        val linkArray = o.optJSONArray("links") ?: JSONArray()
+        for (i in 0 until linkArray.length()) {
+            val item = linkArray.optJSONObject(i) ?: continue
             links += Link(
                 type = item.optString("type"),
                 externalId = item.optString("external_id"),
@@ -117,6 +131,27 @@ object CentralApi {
                 metaJson = (item.optJSONObject("meta") ?: JSONObject()).toString()
             )
         }
+
+        val modules = mutableListOf<Module>()
+        val moduleArray = o.optJSONArray("modules") ?: JSONArray()
+        for (i in 0 until moduleArray.length()) {
+            val item = moduleArray.optJSONObject(i) ?: continue
+            val key = item.optString("key").trim()
+            if (key.isBlank()) continue
+            modules += Module(
+                key = key,
+                title = item.optString("title", key),
+                description = item.optString("description"),
+                category = item.optString("category"),
+                icon = item.optString("icon"),
+                color = item.optString("color"),
+                type = item.optString("type", "web"),
+                url = item.optString("url"),
+                sso = item.optBoolean("sso", false),
+                canManage = item.optBoolean("can_manage", false)
+            )
+        }
+
         val school = o.optJSONObject("school") ?: JSONObject()
         val primary = o.optString("primary_role").ifBlank { roles.firstOrNull().orEmpty() }
         return Profile(
@@ -128,6 +163,7 @@ object CentralApi {
             schoolScope = o.optString("school_scope", "both"),
             permissions = permissions,
             links = links,
+            modules = modules,
             schoolName = school.optString("name"),
             schoolShortName = school.optString("short_name"),
             schoolCode = school.optString("code"),
