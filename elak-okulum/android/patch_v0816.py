@@ -126,7 +126,7 @@ if n != 1:
 activity.write_text(s, encoding="utf-8")
 
 a = api.read_text(encoding="utf-8")
-a = re.sub(r'private const val UA = "ELAK-Okulum/0\.8\.\d+ Android"', 'private const val UA = "ELAK-Okulum/0.8.16 Android"', a)
+a = re.sub(r'private const val UA = "ELAK-Okulum/0\.8\.\d+ Android"', 'private const val UA = "ELAK-Okulum/0.9.0 Android"', a)
 api.write_text(a, encoding="utf-8")
 
-print("v0.8.16 class filter patch applied")
+print("v0.9.0 class filter patch applied")
