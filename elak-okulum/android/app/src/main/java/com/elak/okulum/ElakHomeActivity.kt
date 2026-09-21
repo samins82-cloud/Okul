@@ -18,6 +18,7 @@ import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
+import com.elak.okulum.auth.CentralApi
 import com.elak.okulum.izin.IzinActivity88
 import com.elak.okulum.izin.IzinApi
 import com.elak.okulum.izin.IzinSession
@@ -43,11 +44,22 @@ class ElakHomeActivity : AppCompatActivity() {
     private lateinit var root: LinearLayout
     private lateinit var content: FrameLayout
     private lateinit var bottomNav: LinearLayout
+    private lateinit var account: OkulumSession
     private val navItems = linkedMapOf<String, TextView>()
     private var role = "manager"
     private var displayName = ""
     private var currentTab = "home"
     private var izinValue: TextView? = null
+
+    private data class Module(
+        val key: String,
+        val permissionKey: String,
+        val icon: String,
+        val title: String,
+        val desc: String,
+        val color: Int,
+        val action: () -> Unit
+    )
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -56,13 +68,12 @@ class ElakHomeActivity : AppCompatActivity() {
         window.statusBarColor = navy
         window.navigationBarColor = Color.WHITE
 
-        val account = OkulumSession(this)
-        val rawRole = account.role.ifBlank { IzinSession(this).role }
-        role = normalizeRole(rawRole)
+        account = OkulumSession(this)
+        role = resolveRole(account.roles.ifEmpty { setOf(account.role.ifBlank { IzinSession(this).role }) })
         displayName = account.displayName.ifBlank { account.username }
-
         buildShell()
         showHome()
+        refreshCentralProfileIfNeeded()
     }
 
     override fun onResume() {
@@ -71,29 +82,21 @@ class ElakHomeActivity : AppCompatActivity() {
     }
 
     private fun buildShell() {
-        root = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setBackgroundColor(pageBg)
-        }
+        root = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setBackgroundColor(pageBg) }
         content = FrameLayout(this).apply { setBackgroundColor(pageBg) }
         bottomNav = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER
-            setPadding(dp(5), dp(6), dp(5), dp(6))
-            setBackgroundColor(Color.WHITE)
-            elevation = dp(12).toFloat()
+            orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER
+            setPadding(dp(5), dp(6), dp(5), dp(6)); setBackgroundColor(Color.WHITE); elevation = dp(12).toFloat()
         }
         root.addView(content, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
         root.addView(bottomNav, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(70)))
         setContentView(root)
-
-        val controller = WindowInsetsControllerCompat(window, root)
-        controller.isAppearanceLightStatusBars = false
-        controller.isAppearanceLightNavigationBars = true
+        WindowInsetsControllerCompat(window, root).apply {
+            isAppearanceLightStatusBars = false; isAppearanceLightNavigationBars = true
+        }
         ViewCompat.setOnApplyWindowInsetsListener(root) { v, insets ->
             val bars = insets.getInsets(WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout())
-            v.setPadding(bars.left, bars.top, bars.right, bars.bottom)
-            insets
+            v.setPadding(bars.left, bars.top, bars.right, bars.bottom); insets
         }
         ViewCompat.requestApplyInsets(root)
         buildBottomNav()
@@ -110,24 +113,19 @@ class ElakHomeActivity : AppCompatActivity() {
 
     private fun addBottom(key: String, icon: String, label: String, color: Int, action: () -> Unit) {
         val item = TextView(this).apply {
-            text = "$icon\n$label"
-            gravity = Gravity.CENTER
-            textSize = 10.5f
-            setTextColor(muted)
+            text = "$icon\n$label"; gravity = Gravity.CENTER; textSize = 10.5f; setTextColor(muted)
             setPadding(dp(2), dp(4), dp(2), dp(4))
             setOnClickListener { currentTab = key; selectBottom(key); action() }
         }
-        item.tag = color
-        navItems[key] = item
+        item.tag = color; navItems[key] = item
         bottomNav.addView(item, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, 1f))
     }
 
     private fun selectBottom(key: String) {
         navItems.forEach { (k, item) ->
-            val selected = k == key
-            val c = item.tag as Int
+            val selected = k == key; val c = item.tag as Int
             item.setTextColor(if (selected) c else muted)
-            item.background = rounded(if (selected) tint(c, 0.10f) else Color.TRANSPARENT, 15, if (selected) tint(c, .24f) else Color.TRANSPARENT)
+            item.background = rounded(if (selected) tint(c, .10f) else Color.TRANSPARENT, 15, if (selected) tint(c, .24f) else Color.TRANSPARENT)
             item.setTypeface(null, if (selected) Typeface.BOLD else Typeface.NORMAL)
         }
     }
@@ -135,38 +133,26 @@ class ElakHomeActivity : AppCompatActivity() {
     private fun showHome() {
         currentTab = "home"; selectBottom(currentTab)
         val page = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(14), dp(12), dp(14), dp(24)) }
-        page.addView(headerCard())
-        page.addView(space(12))
-        page.addView(todayCard())
-        page.addView(sectionTitle("Hızlı İşlemler", "Gün içinde en sık kullandığınız işlemler"))
-        page.addView(quickRow())
-        page.addView(sectionTitle("ELAK Modülleri", roleModuleSubtitle()))
-        page.addView(moduleGrid())
-        page.addView(sectionTitle("Bugünkü Akış", "Duyuru, yoklama, izin ve randevu hareketleri burada birleşecek"))
-        page.addView(feedPreview())
-        show(page)
-        refreshIzinSummary()
+        page.addView(headerCard()); page.addView(space(12)); page.addView(todayCard())
+        page.addView(sectionTitle("Hızlı İşlemler", "Yetkinize göre en sık kullanılan işlemler")); page.addView(quickRow())
+        page.addView(sectionTitle("ELAK Modülleri", roleModuleSubtitle())); page.addView(moduleGrid())
+        page.addView(sectionTitle("Bugünkü Akış", "Duyuru, yoklama, izin ve randevu hareketleri tek yerde")); page.addView(feedPreview())
+        show(page); refreshIzinSummary()
     }
 
-    private fun headerCard(): View {
-        val box = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(dp(18), dp(17), dp(18), dp(16))
-            background = gradient(navy, navy2, 22)
-        }
-        box.addView(TextView(this).apply {
-            text = "Mahmud Celaleddin Ökten AİHL"
-            textSize = 11.5f; setTextColor(Color.rgb(196, 215, 241)); setTypeface(typeface, Typeface.BOLD)
+    private fun headerCard(): View = LinearLayout(this).apply {
+        orientation = LinearLayout.VERTICAL; setPadding(dp(18), dp(17), dp(18), dp(16)); background = gradient(navy, navy2, 22)
+        addView(TextView(this@ElakHomeActivity).apply {
+            text = "Mahmud Celaleddin Ökten AİHL"; textSize = 11.5f; setTextColor(Color.rgb(196, 215, 241)); setTypeface(typeface, Typeface.BOLD)
         })
-        box.addView(TextView(this).apply {
+        addView(TextView(this@ElakHomeActivity).apply {
             text = if (displayName.isBlank()) "ELAK Okulum" else "Merhaba, $displayName"
             textSize = 23f; setTextColor(Color.WHITE); setTypeface(typeface, Typeface.BOLD); setPadding(0, dp(5), 0, 0)
         })
-        box.addView(TextView(this).apply {
-            text = "${roleLabel()}  •  Tek uygulama, tek oturum"
-            textSize = 12f; setTextColor(Color.rgb(210, 224, 244)); setPadding(0, dp(5), 0, 0)
+        addView(TextView(this@ElakHomeActivity).apply {
+            text = "${roleLabels()}  •  ${scopeLabel()}${if (account.centralEnabled) "  •  Merkezi Yetki" else ""}"
+            textSize = 11.5f; setTextColor(Color.rgb(210, 224, 244)); setPadding(0, dp(5), 0, 0)
         })
-        return box
     }
 
     private fun todayCard(): View {
@@ -184,28 +170,23 @@ class ElakHomeActivity : AppCompatActivity() {
             textSize = 11.5f; setTextColor(muted); setPadding(0, dp(4), 0, 0)
         })
         val badge = TextView(this).apply {
-            text = "CANLI"; textSize = 10f; gravity = Gravity.CENTER; setTextColor(green); setTypeface(typeface, Typeface.BOLD)
-            background = rounded(tint(green, .10f), 10, tint(green, .22f)); setPadding(dp(9), dp(5), dp(9), dp(5))
+            text = if (account.centralEnabled) "MERKEZİ" else "CANLI"; textSize = 10f; gravity = Gravity.CENTER
+            setTextColor(green); setTypeface(typeface, Typeface.BOLD); background = rounded(tint(green, .10f), 10, tint(green, .22f)); setPadding(dp(9), dp(5), dp(9), dp(5))
         }
-        row.addView(left, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)); row.addView(badge)
-        box.addView(row)
+        row.addView(left, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)); row.addView(badge); box.addView(row)
         val stats = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; setPadding(0, dp(14), 0, 0) }
-        stats.addView(miniStat("Bildirim", "—", red), LinearLayout.LayoutParams(0, dp(72), 1f))
-        stats.addView(miniStat("Randevu", "—", purple), LinearLayout.LayoutParams(0, dp(72), 1f).apply { marginStart = dp(7) })
+        stats.addView(miniStat("Rol", account.roles.size.coerceAtLeast(1).toString(), blue), LinearLayout.LayoutParams(0, dp(72), 1f))
+        stats.addView(miniStat("Bağlantı", (account.linkedStudents.size + account.linkedClasses.size).toString(), purple), LinearLayout.LayoutParams(0, dp(72), 1f).apply { marginStart = dp(7) })
         stats.addView(miniStat("Dışarıda", "—", orange), LinearLayout.LayoutParams(0, dp(72), 1f).apply { marginStart = dp(7) })
         box.addView(stats)
         return box
     }
 
     private fun miniStat(label: String, value: String, color: Int): View = LinearLayout(this).apply {
-        orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER
-        background = rounded(tint(color, .075f), 13, tint(color, .16f))
-        val number = TextView(this@ElakHomeActivity).apply {
-            text = value; textSize = 20f; setTextColor(color); setTypeface(typeface, Typeface.BOLD); gravity = Gravity.CENTER
-        }
+        orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER; background = rounded(tint(color, .075f), 13, tint(color, .16f))
+        val number = TextView(this@ElakHomeActivity).apply { text = value; textSize = 20f; setTextColor(color); setTypeface(typeface, Typeface.BOLD); gravity = Gravity.CENTER }
         if (label == "Dışarıda") izinValue = number
-        addView(number)
-        addView(TextView(this@ElakHomeActivity).apply { text = label; textSize = 10.5f; setTextColor(muted); gravity = Gravity.CENTER })
+        addView(number); addView(TextView(this@ElakHomeActivity).apply { text = label; textSize = 10.5f; setTextColor(muted); gravity = Gravity.CENTER })
     }
 
     private fun refreshIzinSummary() {
@@ -213,54 +194,79 @@ class ElakHomeActivity : AppCompatActivity() {
         if (!izin.isReady) { izinValue?.text = "—"; return }
         thread {
             try {
-                val stats = IzinApi.dashboard(izin).optJSONObject("stats")
-                val outside = stats?.optInt("outside", 0) ?: 0
+                val outside = IzinApi.dashboard(izin).optJSONObject("stats")?.optInt("outside", 0) ?: 0
                 runOnUiThread { izinValue?.text = outside.toString() }
-            } catch (_: Exception) {
-                runOnUiThread { izinValue?.text = "—" }
-            }
+            } catch (_: Exception) { runOnUiThread { izinValue?.text = "—" } }
+        }
+    }
+
+    private fun refreshCentralProfileIfNeeded() {
+        if (!account.hasCentralSession) return
+        thread {
+            try {
+                account.updateCentralProfile(CentralApi.me(account.accessToken))
+                runOnUiThread {
+                    role = resolveRole(account.roles); displayName = account.displayName.ifBlank { account.username }
+                    if (currentTab == "home") showHome()
+                }
+            } catch (_: Exception) { }
         }
     }
 
     private fun quickRow(): View {
         val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-        val items = when (role) {
-            "security" -> listOf(
-                Quick("İzin Takip", "Çıkış / Dönüş", orange) { openIzin() },
-                Quick("Rehber", "Öğrenci ara", cyan) { openRehber() }
-            )
-            "guardian" -> listOf(
-                Quick("Devamsızlık", "Anlık takip", red) { openPortal() },
-                Quick("Randevu", "Öğretmen görüşmesi", purple) { openPortal("https://elak.mcoaihl.com/randevu/") }
-            )
-            "teacher" -> listOf(
-                Quick("Yoklama", "Ders başında", green) { openPortal("https://www.mcoaihl.com/dyk_soset/index.php") },
-                Quick("Akıllı Tahta", "QR ile aç", blue) { openPortal() }
-            )
-            else -> listOf(
-                Quick("İzin Takip", "Çıkış / Dönüş", orange) { openIzin() },
-                Quick("Akıllı Rehber", "Veli / Öğrenci", cyan) { openRehber() }
-            )
+        val visible = visibleModules()
+        val preferred = when (role) {
+            "security" -> listOf("izin", "rehber")
+            "guardian" -> listOf("appointment", "exams", "announcements")
+            "teacher" -> listOf("attendance", "board", "rehber")
+            else -> listOf("izin", "rehber", "attendance")
         }
-        items.forEachIndexed { i, q ->
-            row.addView(quickCard(q), LinearLayout.LayoutParams(0, dp(92), 1f).apply { if (i > 0) marginStart = dp(9) })
+        val quick = preferred.mapNotNull { key -> visible.firstOrNull { it.key == key } }.take(2).ifEmpty { visible.take(2) }
+        quick.forEachIndexed { i, m ->
+            val q = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER_VERTICAL; setPadding(dp(14), dp(11), dp(12), dp(11))
+                background = gradient(m.color, darker(m.color), 17); elevation = dp(2).toFloat(); setOnClickListener { m.action() }
+                addView(TextView(this@ElakHomeActivity).apply { text = m.title; textSize = 14f; setTextColor(Color.WHITE); setTypeface(typeface, Typeface.BOLD) })
+                addView(TextView(this@ElakHomeActivity).apply { text = m.desc; textSize = 10.5f; setTextColor(Color.argb(215,255,255,255)); setPadding(0,dp(5),0,0); maxLines = 1 })
+            }
+            row.addView(q, LinearLayout.LayoutParams(0, dp(92), 1f).apply { if (i > 0) marginStart = dp(9) })
         }
+        if (quick.size == 1) row.addView(space(1), LinearLayout.LayoutParams(0, 1, 1f).apply { marginStart = dp(9) })
         return row
     }
 
-    private data class Quick(val title: String, val desc: String, val color: Int, val action: () -> Unit)
-    private fun quickCard(q: Quick): View = LinearLayout(this).apply {
-        orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER_VERTICAL; setPadding(dp(14), dp(11), dp(12), dp(11))
-        background = gradient(q.color, darker(q.color), 17); elevation = dp(2).toFloat(); setOnClickListener { q.action() }
-        addView(TextView(this@ElakHomeActivity).apply { text = q.title; textSize = 14f; setTextColor(Color.WHITE); setTypeface(typeface, Typeface.BOLD) })
-        addView(TextView(this@ElakHomeActivity).apply { text = q.desc; textSize = 10.5f; setTextColor(Color.argb(215,255,255,255)); setPadding(0,dp(5),0,0) })
-    }
+    private fun allModules(): List<Module> = listOf(
+        Module("izin","izin_takip","↔","İzin Takip","Çıkış, dönüş ve güvenlik",orange){openIzin()},
+        Module("rehber","akilli_rehber","☎","Akıllı Rehber","Öğrenci ve veli rehberi",cyan){openRehber()},
+        Module("attendance","online_yoklama","✓","Online Yoklama","Örgün, DYK ve etkinlik",green){openPortal("https://www.mcoaihl.com/dyk_soset/index.php")},
+        Module("appointment","veli_randevu","◷","Veli Randevu","Görüşme saatleri ve kayıtlar",purple){openPortal("https://elak.mcoaihl.com/randevu/")},
+        Module("announcements","duyurular","●","Duyuru Merkezi","Hedefli bildirim ve okunma",red){showNotifications()},
+        Module("schedule","ders_programi","▦","Ders Programı","Öğretmen ve sınıf programı",blue){openPortal()},
+        Module("board","akilli_tahta","QR","Akıllı Tahta","QR, kilit ve cihaz yönetimi",cyan){openPortal()},
+        Module("exams","lgs_yks","▣","LGS / YKS","Deneme ve akademik takip",purple){openPortal("https://elak.mcoaihl.com/deneme-sonuc/index.php")},
+        Module("survey","anketler","☑","Anket & Onay","Veli görüşü ve izinler",green){openPortal()},
+        Module("trip","etkinlik_gezi","⌖","Etkinlik & Gezi","Katılım ve veli onayı",orange){openPortal()},
+        Module("docs","belgeler","▤","Belgeler","Formlar ve dokümanlar",blue){openPortal()},
+        Module("staff","ogretmen_islemleri","♟","Öğretmen İşlemleri","Nöbet ve personel süreçleri",red){openPortal()}
+    )
 
-    private data class Module(val key: String, val icon: String, val title: String, val desc: String, val color: Int, val action: () -> Unit)
+    private fun visibleModules(): List<Module> {
+        val all = allModules()
+        if (account.centralEnabled) return all.filter { account.can("module.${it.permissionKey}") }
+        return when (role) {
+            "security" -> all.filter { it.key in setOf("izin","rehber") }
+            "guardian" -> all.filter { it.key in setOf("announcements","exams","schedule","appointment","survey","trip","docs") }
+            "teacher" -> all.filter { it.key in setOf("attendance","schedule","board","rehber","appointment","announcements","docs") }
+            "student" -> all.filter { it.key in setOf("announcements","exams","schedule","docs") }
+            "dormitory" -> all.filter { it.key in setOf("izin","rehber","announcements","docs") }
+            else -> all
+        }
+    }
 
     private fun moduleGrid(): View {
         val outer = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        val modules = modulesForRole()
+        val modules = visibleModules()
         var i = 0
         while (i < modules.size) {
             val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
@@ -272,45 +278,10 @@ class ElakHomeActivity : AppCompatActivity() {
             outer.addView(row, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(116)).apply { if (i > 0) topMargin = dp(9) })
             i += 2
         }
+        if (modules.isEmpty()) outer.addView(TextView(this).apply {
+            text = "Bu kullanıcı için açık modül bulunmuyor."; textSize = 12f; setTextColor(muted); setPadding(dp(14),dp(16),dp(14),dp(16)); background = rounded(Color.WHITE, 14, line)
+        })
         return outer
-    }
-
-    private fun modulesForRole(): List<Module> {
-        if (role == "security") return listOf(
-            Module("izin","↔","İzin Takip","Öğrenci çıkış ve dönüş",orange){openIzin()},
-            Module("rehber","☎","Akıllı Rehber","Öğrenci / veli iletişim",cyan){openRehber()}
-        )
-        if (role == "guardian") return listOf(
-            Module("attendance","✓","Devamsızlık","Var / yok / geç kayıtları",red){openPortal()},
-            Module("announcements","●","Duyurular","Okul ve sınıf duyuruları",blue){showNotifications()},
-            Module("exams","▣","Sınav Takvimi","Yaklaşan sınavlar",purple){showCalendar()},
-            Module("schedule","▦","Ders Programı","Haftalık ders çizelgesi",cyan){openPortal()},
-            Module("appointment","◷","Randevu","Öğretmen görüşmesi",green){openPortal("https://elak.mcoaihl.com/randevu/")},
-            Module("docs","▤","Belgeler","Form ve dokümanlar",blue){openPortal()}
-        )
-        if (role == "teacher") return listOf(
-            Module("attendance","✓","e-Yoklama","Sınıfta hızlı yoklama",green){openPortal("https://www.mcoaihl.com/dyk_soset/index.php")},
-            Module("schedule","▦","Ders Programım","Haftalık program",purple){openPortal()},
-            Module("board","QR","Akıllı Tahta","QR / cihaz yönetimi",blue){openPortal()},
-            Module("rehber","☎","Akıllı Rehber","Veli iletişim rehberi",cyan){openRehber()},
-            Module("appointment","◷","Randevularım","Veli görüşmeleri",orange){openPortal("https://elak.mcoaihl.com/randevu/")},
-            Module("announcements","●","Duyurular","Sınıf ve okul akışı",red){showNotifications()},
-            Module("docs","▤","Belgeler","Form ve dokümanlar",blue){openPortal()}
-        )
-        return listOf(
-            Module("izin","↔","İzin Takip","Çıkış, dönüş ve güvenlik",orange){openIzin()},
-            Module("rehber","☎","Akıllı Rehber","Öğrenci ve veli rehberi",cyan){openRehber()},
-            Module("attendance","✓","Online Yoklama","Örgün, DYK ve etkinlik",green){openPortal("https://www.mcoaihl.com/dyk_soset/index.php")},
-            Module("appointment","◷","Veli Randevu","Görüşme saatleri ve kayıtlar",purple){openPortal("https://elak.mcoaihl.com/randevu/")},
-            Module("announcements","●","Duyuru Merkezi","Hedefli bildirim ve okunma",red){showNotifications()},
-            Module("schedule","▦","Ders Programı","Öğretmen ve sınıf programı",blue){openPortal()},
-            Module("board","QR","Akıllı Tahta","QR, kilit ve cihaz yönetimi",cyan){openPortal()},
-            Module("exams","▣","LGS / YKS","Deneme ve akademik takip",purple){openPortal("https://elak.mcoaihl.com/deneme-sonuc/index.php")},
-            Module("survey","☑","Anket & Onay","Veli görüşü ve izinler",green){openPortal()},
-            Module("trip","⌖","Etkinlik & Gezi","Katılım ve veli onayı",orange){openPortal()},
-            Module("docs","▤","Belgeler","Formlar ve dokümanlar",blue){openPortal()},
-            Module("staff","♟","Öğretmen İşlemleri","Nöbet ve personel süreçleri",red){openPortal()}
-        )
     }
 
     private fun moduleCard(m: Module): View = LinearLayout(this).apply {
@@ -324,115 +295,133 @@ class ElakHomeActivity : AppCompatActivity() {
         top.addView(TextView(this@ElakHomeActivity).apply {
             text = m.title; textSize = 13.5f; setTextColor(ink); setTypeface(typeface, Typeface.BOLD); setPadding(dp(9),0,0,0)
         }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
-        addView(top)
-        addView(TextView(this@ElakHomeActivity).apply { text = m.desc; textSize = 10.5f; setTextColor(muted); setPadding(0,dp(8),0,0); maxLines = 2 })
+        addView(top); addView(TextView(this@ElakHomeActivity).apply { text = m.desc; textSize = 10.5f; setTextColor(muted); setPadding(0,dp(8),0,0); maxLines = 2 })
     }
 
-    private fun feedPreview(): View {
-        val box = card(Color.WHITE, purple)
-        box.addView(feedLine("Bildirim Merkezi", "Devamsızlık, duyuru ve kişisel bildirimler", red))
-        box.addView(divider())
-        box.addView(feedLine("Randevu & Takvim", "Yaklaşan görüşme ve sınavlar", purple))
-        box.addView(divider())
-        box.addView(feedLine("Okul Hareketleri", "İzin, yoklama ve güvenlik kayıtları", orange))
-        return box
+    private fun feedPreview(): View = card(Color.WHITE, purple).apply {
+        addView(feedLine("Bildirim Merkezi", "Devamsızlık, duyuru ve kişisel bildirimler", red)); addView(divider())
+        addView(feedLine("Randevu & Takvim", "Yaklaşan görüşme ve sınavlar", purple)); addView(divider())
+        addView(feedLine("Okul Hareketleri", "İzin, yoklama ve güvenlik kayıtları", orange))
     }
 
     private fun feedLine(title: String, desc: String, color: Int): View = LinearLayout(this).apply {
         orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; setPadding(0,dp(7),0,dp(7))
         addView(View(this@ElakHomeActivity).apply { background = rounded(color, 8) }, LinearLayout.LayoutParams(dp(5), dp(40)))
-        val tx = LinearLayout(this@ElakHomeActivity).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(10),0,0,0) }
-        tx.addView(TextView(this@ElakHomeActivity).apply { text=title; textSize=12.5f; setTextColor(ink); setTypeface(typeface,Typeface.BOLD) })
-        tx.addView(TextView(this@ElakHomeActivity).apply { text=desc; textSize=10.5f; setTextColor(muted); setPadding(0,dp(2),0,0) })
-        addView(tx)
+        addView(LinearLayout(this@ElakHomeActivity).apply {
+            orientation = LinearLayout.VERTICAL; setPadding(dp(10),0,0,0)
+            addView(TextView(this@ElakHomeActivity).apply { text=title; textSize=12.5f; setTextColor(ink); setTypeface(typeface,Typeface.BOLD) })
+            addView(TextView(this@ElakHomeActivity).apply { text=desc; textSize=10.5f; setTextColor(muted); setPadding(0,dp(2),0,0) })
+        })
     }
 
     private fun showNotifications() {
         currentTab="notifications"; selectBottom(currentTab)
-        show(simpleSection("Bildirim Merkezi", "Devamsızlık, kişisel ve genel bildirimleri tek yerde toplayacağız.", listOf(
+        show(simpleSection("Bildirim Merkezi", "Devamsızlık, kişisel ve genel bildirimler burada birleşecek.", listOf(
             Triple("Devamsızlık", "Yoklama alınır alınmaz ilgili veliye", red),
-            Triple("Özel", "Sınav, öğretmen yorumu, randevu ve öğrenciye özel kayıtlar", purple),
+            Triple("Özel", "Sınav, randevu ve öğrenciye özel kayıtlar", purple),
             Triple("Genel", "Okul ve sınıf duyuruları", blue),
-            Triple("Okundu Bilgisi", "İdare gönderim ve okunma durumunu görecek", green)
+            Triple("Okundu Bilgisi", "Gönderim ve okunma durumu", green)
         )))
     }
 
     private fun showCalendar() {
         currentTab="calendar"; selectBottom(currentTab)
-        show(simpleSection("Takvim", "Sınav, randevu, gezi, DYK ve okul etkinlikleri tek takvimde birleşecek.", listOf(
-            Triple("Sınav Takvimi", "Ders ve tarih bazlı", purple),
-            Triple("Randevular", "Öğretmen / veli görüşmeleri", green),
-            Triple("Etkinlik & Gezi", "Katılım ve onay süreleri", orange),
-            Triple("DYK / Program", "Ders ve çalışma takvimi", blue)
+        show(simpleSection("Takvim", "Sınav, randevu, gezi, DYK ve okul etkinlikleri tek takvimde.", listOf(
+            Triple("Sınav Takvimi", "Ders ve tarih bazlı", purple), Triple("Randevular", "Öğretmen / veli görüşmeleri", green),
+            Triple("Etkinlik & Gezi", "Katılım ve onay süreleri", orange), Triple("DYK / Program", "Ders ve çalışma takvimi", blue)
         )))
     }
 
     private fun showMessages() {
         currentTab="messages"; selectBottom(currentTab)
-        show(simpleSection("Mesajlar", "Kontrollü öğretmen–veli iletişimi; okulun belirlediği saat ve yetki kurallarıyla.", listOf(
-            Triple("Birebir Mesaj", "Öğretmen–veli arasında kayıtlı görüşme", green),
-            Triple("Dosya / Görsel", "Mesaj içinde güvenli paylaşım", blue),
-            Triple("Okundu", "Teslim ve okunma durumu", purple),
-            Triple("İletişim Kuralı", "Sohbeti kimin başlatacağı okul ayarından", orange)
+        show(simpleSection("Mesajlar", "Kontrollü öğretmen–veli iletişimi merkezi kimlik üzerinden çalışacak.", listOf(
+            Triple("Birebir Mesaj", "Öğretmen–veli arasında kayıtlı görüşme", green), Triple("Dosya / Görsel", "Güvenli paylaşım", blue),
+            Triple("Okundu", "Teslim ve okunma durumu", purple), Triple("Yetki", "İletişim kuralı role göre", orange)
         )))
     }
 
     private fun showProfile() {
         currentTab="profile"; selectBottom(currentTab)
         val page = LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; setPadding(dp(14),dp(12),dp(14),dp(24)) }
-        page.addView(headerCard())
-        page.addView(sectionTitle("Hesap", "ELAK Okulum kişisel oturum ve cihaz ayarları"))
+        page.addView(headerCard()); page.addView(sectionTitle("Hesap", "Merkezi ELAK kullanıcı ve yetki bilgileri"))
         val box = card(Color.WHITE, orange)
-        box.addView(infoRow("Ad Soyad", displayName.ifBlank{"-"}))
-        box.addView(divider())
-        box.addView(infoRow("Rol", roleLabel()))
-        box.addView(divider())
-        box.addView(infoRow("Sürüm", "0.9.1"))
-        box.addView(divider())
-        box.addView(infoRow("Okul", "Mahmud Celaleddin Ökten AİHL"))
-        page.addView(box)
+        box.addView(infoRow("Ad Soyad", displayName.ifBlank{"-"})); box.addView(divider())
+        box.addView(infoRow("Roller", roleLabels())); box.addView(divider())
+        box.addView(infoRow("Okul Kapsamı", scopeLabel())); box.addView(divider())
+        box.addView(infoRow("Yetki Sayısı", if (account.centralEnabled) account.permissions.size.toString() else "Geçiş modu")); box.addView(divider())
+        box.addView(infoRow("Bağlı Öğrenci", account.linkedStudents.size.toString())); box.addView(divider())
+        box.addView(infoRow("Bağlı Sınıf", account.linkedClasses.size.toString())); box.addView(divider())
+        box.addView(infoRow("Merkezi Oturum", if (account.centralEnabled) "Aktif" else "Eski sistem uyum modu")); box.addView(divider())
+        box.addView(infoRow("Sürüm", "0.9.2")); page.addView(box)
         val portal=actionButton("ELAK Web Portalını Aç", blue); portal.setOnClickListener{openPortal()}; page.addView(space(12));page.addView(portal)
-        val logout=actionButton("Oturumu Kapat", red); logout.setOnClickListener{confirmLogout()};page.addView(space(9));page.addView(logout)
+        val logout=actionButton("Oturumu Kapat", red); logout.setOnClickListener{confirmLogout()}; page.addView(space(9));page.addView(logout)
         show(page)
     }
 
     private fun simpleSection(title:String, sub:String, items:List<Triple<String,String,Int>>):View {
         val page=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL;setPadding(dp(14),dp(12),dp(14),dp(24))}
         page.addView(hero(title,sub))
-        items.forEach{(a,b,c)-> page.addView(card(Color.WHITE,c).apply{addView(TextView(this@ElakHomeActivity).apply{text=a;textSize=15f;setTextColor(ink);setTypeface(typeface,Typeface.BOLD)});addView(TextView(this@ElakHomeActivity).apply{text=b;textSize=11.5f;setTextColor(muted);setPadding(0,dp(5),0,0)})},LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,ViewGroup.LayoutParams.WRAP_CONTENT).apply{topMargin=dp(9)})}
+        items.forEach{(a,b,c)-> page.addView(card(Color.WHITE,c).apply{
+            addView(TextView(this@ElakHomeActivity).apply{text=a;textSize=15f;setTextColor(ink);setTypeface(typeface,Typeface.BOLD)})
+            addView(TextView(this@ElakHomeActivity).apply{text=b;textSize=11.5f;setTextColor(muted);setPadding(0,dp(5),0,0)})
+        },LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,ViewGroup.LayoutParams.WRAP_CONTENT).apply{topMargin=dp(9)})}
         return page
     }
 
     private fun openIzin(){ startActivity(Intent(this, IzinActivity88::class.java)) }
     private fun openRehber(){ startActivity(Intent(this, RehberActivity81::class.java)) }
     private fun openPortal(url:String="https://elak.mcoaihl.com/okulum/"){
-        startActivity(Intent(this, WebModuleActivity::class.java)
-            .putExtra(WebModuleActivity.EXTRA_TITLE, "ELAK Modül")
-            .putExtra(WebModuleActivity.EXTRA_URL, url))
+        startActivity(Intent(this, WebModuleActivity::class.java).putExtra(WebModuleActivity.EXTRA_TITLE, "ELAK Modül").putExtra(WebModuleActivity.EXTRA_URL, url))
     }
 
     private fun confirmLogout(){
         AlertDialog.Builder(this).setTitle("Oturumu kapat").setMessage("ELAK Okulum kişisel oturumu bu cihazdan kapatılsın mı?")
             .setNegativeButton("Vazgeç",null).setPositiveButton("Çıkış") { _,_->
-                OkulumSession(this).clear()
-                RehberSession(this).clear()
-                IzinSession(this).clear()
-                val i=Intent(this,LoginActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
-                startActivity(i); finish()
+                val token = account.accessToken
+                thread { CentralApi.logout(token) }
+                account.clear(); RehberSession(this).clear(); IzinSession(this).clear()
+                startActivity(Intent(this,LoginActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)); finish()
             }.show()
     }
 
-    private fun roleModuleSubtitle():String = when(role){
-        "teacher"->"Öğretmenin günlük sınıf işleri tek yerde"
-        "guardian"->"Çocuğunuza ait okul bilgileri tek yerde"
-        "security"->"Güvenlik ve öğrenci hareketleri"
-        "dormitory"->"Pansiyon ve öğrenci süreçleri"
-        else->"Okul yönetimi için merkezi çalışma alanı"
+    private fun roleModuleSubtitle():String = if (account.centralEnabled) "Merkezi yetkilerinize göre açık modüller" else when(role){
+        "teacher"->"Öğretmenin günlük sınıf işleri tek yerde"; "guardian"->"Çocuğunuza ait okul bilgileri tek yerde"
+        "security"->"Güvenlik ve öğrenci hareketleri"; "dormitory"->"Pansiyon ve öğrenci süreçleri"; else->"Okul yönetimi için merkezi çalışma alanı"
     }
-    private fun roleLabel():String = when(role){"school_admin"->"Tam Yetkili Yönetici";"manager"->"Yönetici";"teacher"->"Öğretmen";"guardian"->"Veli";"security"->"Güvenlik";"dormitory"->"Pansiyon";else->"Kullanıcı"}
+
+    private fun resolveRole(roles: Set<String>): String {
+        val normalized = roles.map { normalizeRole(it) }.toSet()
+        return when {
+            "manager" in normalized || "school_admin" in roles -> "manager"
+            "teacher" in normalized -> "teacher"
+            "security" in normalized -> "security"
+            "guardian" in normalized -> "guardian"
+            "student" in normalized -> "student"
+            "dormitory" in normalized -> "dormitory"
+            else -> "manager"
+        }
+    }
+
+    private fun roleLabels():String {
+        val labels = account.roles.ifEmpty { setOf(account.role) }.filter { it.isNotBlank() }.map { roleLabelFor(it) }.distinct()
+        return labels.ifEmpty { listOf(roleLabelFor(role)) }.joinToString(" + ")
+    }
+    private fun roleLabelFor(raw:String):String = when(normalizeRole(raw)){
+        "manager"-> if(raw.contains("school_admin",true)||raw.contains("tam",true)) "Tam Yetkili Yönetici" else "Yönetici"
+        "teacher"->"Öğretmen"; "guardian"->"Veli"; "security"->"Güvenlik"; "dormitory"->"Pansiyon"; "student"->"Öğrenci"; else->"Kullanıcı"
+    }
+    private fun scopeLabel():String = when(account.schoolScope.lowercase()) { "middle","oo","ortaokul"->"Ortaokul"; "high","lise"->"Lise"; else->"Ortaokul + Lise" }
     private fun normalizeRole(raw:String):String{
         val r=raw.trim().lowercase(Locale.forLanguageTag("tr-TR"))
-        return when{r.contains("veli")||r.contains("guardian")||r.contains("parent")->"guardian";r.contains("öğret")||r.contains("ogret")||r.contains("teacher")->"teacher";r.contains("güven")||r.contains("guven")||r.contains("security")->"security";r.contains("pans")||r.contains("dorm")->"dormitory";r.contains("admin")||r.contains("tam")||r.contains("yönet")||r.contains("yonet")||r.contains("manager")->"manager";else->"manager"}
+        return when{
+            r.contains("veli")||r.contains("guardian")||r.contains("parent")->"guardian"
+            r.contains("öğr")&& !r.contains("öğret") || r.contains("student")->"student"
+            r.contains("öğret")||r.contains("ogret")||r.contains("teacher")->"teacher"
+            r.contains("güven")||r.contains("guven")||r.contains("security")->"security"
+            r.contains("pans")||r.contains("dorm")->"dormitory"
+            r.contains("admin")||r.contains("tam")||r.contains("yönet")||r.contains("yonet")||r.contains("manager")->"manager"
+            else->r.ifBlank { "manager" }
+        }
     }
 
     private fun sectionTitle(title:String,sub:String):View=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL;setPadding(dp(3),dp(18),dp(3),dp(8));addView(TextView(this@ElakHomeActivity).apply{text=title;textSize=17f;setTextColor(ink);setTypeface(typeface,Typeface.BOLD)});addView(TextView(this@ElakHomeActivity).apply{text=sub;textSize=10.5f;setTextColor(muted);setPadding(0,dp(2),0,0)})}
