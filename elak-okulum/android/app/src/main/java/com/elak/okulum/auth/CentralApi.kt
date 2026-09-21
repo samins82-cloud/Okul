@@ -10,7 +10,6 @@ import java.net.URL
 object CentralApi {
     private const val BASE = "https://elak.mcoaihl.com/api/v1/index.php?r="
     private const val UA = "ELAK-Okulum/0.9.2 Android"
-    private const val SCHOOL_CODE = "MCOAIHL"
 
     data class Link(
         val type: String,
@@ -30,7 +29,9 @@ object CentralApi {
         val permissions: List<String>,
         val links: List<Link>,
         val schoolName: String,
-        val schoolCode: String
+        val schoolShortName: String,
+        val schoolCode: String,
+        val schoolLogoUrl: String
     )
 
     data class AuthResult(
@@ -46,11 +47,13 @@ object CentralApi {
         val expiresIn: Long
     )
 
-    fun login(username: String, password: String): AuthResult {
+    fun login(username: String, password: String, schoolCode: String): AuthResult {
+        val code = schoolCode.trim().uppercase()
+        if (code.isBlank()) throw IllegalArgumentException("Okul kodu gerekli.")
         val body = JSONObject()
             .put("username", username.trim())
             .put("password", password)
-            .put("school_code", SCHOOL_CODE)
+            .put("school_code", code)
             .put("device_name", "Android")
             .put("app_version", "0.9.2")
         val json = request("auth/login", "POST", null, body)
@@ -63,6 +66,9 @@ object CentralApi {
         ).also {
             if (it.accessToken.isBlank() || it.refreshToken.isBlank() || it.profile.username.isBlank()) {
                 throw IllegalStateException("Merkezi oturum bilgisi eksik döndü.")
+            }
+            if (!it.profile.schoolCode.equals(code, ignoreCase = true)) {
+                throw IllegalStateException("Okul doğrulaması başarısız.")
             }
         }
     }
@@ -123,7 +129,9 @@ object CentralApi {
             permissions = permissions,
             links = links,
             schoolName = school.optString("name"),
-            schoolCode = school.optString("code")
+            schoolShortName = school.optString("short_name"),
+            schoolCode = school.optString("code"),
+            schoolLogoUrl = school.optString("logo_url")
         )
     }
 
