@@ -8,6 +8,7 @@ on:
       - 'elak-okulum/server/mobile-push.php'
       - 'elak-okulum/server/push-admin.php'
       - 'elak-okulum/server/PUSH_0_9_3_1_KURULUM.md'
+      - 'elak-okulum/server/prepare_push_package.py'
       - '.github/workflows/build-elak-okulum-apk.yml'
 
 permissions:
@@ -117,12 +118,12 @@ jobs:
           cp elak-okulum/android/app/build/outputs/apk/release/app-release-unsigned.apk ELAK-Okulum-v0.9.3.1-release-unsigned.apk
           cp "$ANDROID_HOME/build-tools/35.0.0/lib/apksigner.jar" apksigner.jar
 
-      - name: Prepare push server package
+      - name: Prepare and lint push server package
         run: |
-          mkdir -p ELAK-PUSH-0.9.3.1
-          cp elak-okulum/server/mobile-push.php ELAK-PUSH-0.9.3.1/
-          cp elak-okulum/server/push-admin.php ELAK-PUSH-0.9.3.1/
-          cp elak-okulum/server/PUSH_0_9_3_1_KURULUM.md ELAK-PUSH-0.9.3.1/OKU-BENI.md
+          rm -rf ELAK-PUSH-0.9.3.1
+          python3 elak-okulum/server/prepare_push_package.py ELAK-PUSH-0.9.3.1
+          php -l ELAK-PUSH-0.9.3.1/mobile-push.php
+          php -l ELAK-PUSH-0.9.3.1/push-admin.php
           zip -qr ELAK-PUSH-0.9.3.1-SUNUCU.zip ELAK-PUSH-0.9.3.1
 
       - name: Upload debug APK
