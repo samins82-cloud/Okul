@@ -1,0 +1,62 @@
+name: Deploy ELAK Central Server
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate deployment secrets
+        env:
+          FTP_SERVER: ${{ secrets.ELAK_FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.ELAK_FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.ELAK_FTP_PASSWORD }}
+          REMOTE_ROOT: ${{ secrets.ELAK_FTP_PROJECT_ROOT }}
+        run: |
+          test -n "$FTP_SERVER" || { echo "::error::ELAK_FTP_SERVER eksik"; exit 1; }
+          test -n "$FTP_USERNAME" || { echo "::error::ELAK_FTP_USERNAME eksik"; exit 1; }
+          test -n "$FTP_PASSWORD" || { echo "::error::ELAK_FTP_PASSWORD eksik"; exit 1; }
+          test -n "$REMOTE_ROOT" || { echo "::error::ELAK_FTP_PROJECT_ROOT eksik"; exit 1; }
+
+      - name: Install lftp
+        run: sudo apt-get update -qq && sudo apt-get install -y lftp
+
+      - name: Prepare deploy tree
+        run: |
+          rm -rf .deploy
+          mkdir -p .deploy/server .deploy/database
+          cp -a elak-okulum/server/. .deploy/server/
+          cp -a elak-okulum/database/. .deploy/database/
+          find .deploy -type f -print
+
+      - name: Upload central server files
+        env:
+          FTP_SERVER: ${{ secrets.ELAK_FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.ELAK_FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.ELAK_FTP_PASSWORD }}
+          REMOTE_ROOT: ${{ secrets.ELAK_FTP_PROJECT_ROOT }}
+        run: |
+          lftp -u "$FTP_USERNAME","$FTP_PASSWORD" "$FTP_SERVER" <<EOF
+          set cmd:fail-exit true
+          set net:max-retries 2
+          set net:timeout 20
+          set ftp:ssl-allow true
+          mkdir -p "$REMOTE_ROOT/server"
+          mkdir -p "$REMOTE_ROOT/database"
+          mirror --reverse --verbose --parallel=4 .deploy/server "$REMOTE_ROOT/server"
+          mirror --reverse --verbose --parallel=4 .deploy/database "$REMOTE_ROOT/database"
+          bye
+          EOF
+
+      - name: Deployment note
+        run: |
+          echo "ELAK merkezi sunucu dosyalari yuklendi."
+          echo "Canli .env ve storage klasorleri deployment tarafindan silinmez."
+          echo "Web document root, proje kokundeki server klasorunu gostermelidir."
