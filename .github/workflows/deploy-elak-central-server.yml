@@ -9,54 +9,61 @@ permissions:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    env:
+      FTP_SERVER: dp01.ni.net.tr
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
       - name: Validate deployment secrets
         env:
-          FTP_SERVER: ${{ secrets.ELAK_FTP_SERVER }}
           FTP_USERNAME: ${{ secrets.ELAK_FTP_USERNAME }}
           FTP_PASSWORD: ${{ secrets.ELAK_FTP_PASSWORD }}
-          REMOTE_ROOT: ${{ secrets.ELAK_FTP_PROJECT_ROOT }}
+          WEB_ROOT: ${{ secrets.ELAK_FTP_WEB_ROOT }}
         run: |
-          test -n "$FTP_SERVER" || { echo "::error::ELAK_FTP_SERVER eksik"; exit 1; }
           test -n "$FTP_USERNAME" || { echo "::error::ELAK_FTP_USERNAME eksik"; exit 1; }
           test -n "$FTP_PASSWORD" || { echo "::error::ELAK_FTP_PASSWORD eksik"; exit 1; }
-          test -n "$REMOTE_ROOT" || { echo "::error::ELAK_FTP_PROJECT_ROOT eksik"; exit 1; }
+          test -n "$WEB_ROOT" || { echo "::error::ELAK_FTP_WEB_ROOT eksik"; exit 1; }
 
       - name: Install lftp
         run: sudo apt-get update -qq && sudo apt-get install -y lftp
 
-      - name: Prepare deploy tree
+      - name: Prepare production tree
         run: |
           rm -rf .deploy
-          mkdir -p .deploy/server .deploy/database
-          cp -a elak-okulum/server/. .deploy/server/
+          mkdir -p .deploy/api .deploy/central-admin .deploy/database
+          cp -a elak-okulum/server/api/. .deploy/api/
+          cp -a elak-okulum/server/admin/. .deploy/central-admin/
+          cp elak-okulum/server/install.php .deploy/central-install.php
           cp -a elak-okulum/database/. .deploy/database/
           find .deploy -type f -print
 
-      - name: Upload central server files
+      - name: Upload to dp01 without touching main site
         env:
-          FTP_SERVER: ${{ secrets.ELAK_FTP_SERVER }}
           FTP_USERNAME: ${{ secrets.ELAK_FTP_USERNAME }}
           FTP_PASSWORD: ${{ secrets.ELAK_FTP_PASSWORD }}
-          REMOTE_ROOT: ${{ secrets.ELAK_FTP_PROJECT_ROOT }}
+          WEB_ROOT: ${{ secrets.ELAK_FTP_WEB_ROOT }}
         run: |
           lftp -u "$FTP_USERNAME","$FTP_PASSWORD" "$FTP_SERVER" <<EOF
           set cmd:fail-exit true
           set net:max-retries 2
           set net:timeout 20
           set ftp:ssl-allow true
-          mkdir -p "$REMOTE_ROOT/server"
-          mkdir -p "$REMOTE_ROOT/database"
-          mirror --reverse --verbose --parallel=4 .deploy/server "$REMOTE_ROOT/server"
-          mirror --reverse --verbose --parallel=4 .deploy/database "$REMOTE_ROOT/database"
+          mkdir -p "$WEB_ROOT/api"
+          mkdir -p "$WEB_ROOT/central-admin"
+          mkdir -p "$WEB_ROOT/_elak_database"
+          mirror --reverse --verbose --parallel=4 .deploy/api "$WEB_ROOT/api"
+          mirror --reverse --verbose --parallel=4 .deploy/central-admin "$WEB_ROOT/central-admin"
+          mirror --reverse --verbose --parallel=4 .deploy/database "$WEB_ROOT/_elak_database"
+          put -O "$WEB_ROOT" .deploy/central-install.php
           bye
           EOF
 
-      - name: Deployment note
+      - name: Production endpoints
         run: |
-          echo "ELAK merkezi sunucu dosyalari yuklendi."
-          echo "Canli .env ve storage klasorleri deployment tarafindan silinmez."
-          echo "Web document root, proje kokundeki server klasorunu gostermelidir."
+          echo "Ana site korunur: https://elak.mcoaihl.com/"
+          echo "API: https://elak.mcoaihl.com/api/v1/index.php?r=health"
+          echo "Merkezi yonetim: https://elak.mcoaihl.com/central-admin/"
+          echo "Kurulum: https://elak.mcoaihl.com/central-install.php"
+          echo "Hosting sunucusu: dp01.ni.net.tr"
+          echo "Kurulum tamamlandiktan sonra central-install.php sunucudan silinmelidir."
