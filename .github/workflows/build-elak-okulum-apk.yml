@@ -87,6 +87,19 @@ jobs:
         working-directory: elak-okulum/android
         run: python3 patch_v093_notifications.py
 
+      - name: Apply 0.9.3.1 FCM and receipt integration
+        working-directory: elak-okulum/android
+        run: python3 patch_v0931_fcm.py
+
+      - name: Configure optional Firebase client
+        working-directory: elak-okulum/android
+        env:
+          ELAK_FIREBASE_APP_ID: ${{ secrets.ELAK_FIREBASE_APP_ID }}
+          ELAK_FIREBASE_API_KEY: ${{ secrets.ELAK_FIREBASE_API_KEY }}
+          ELAK_FIREBASE_PROJECT_ID: ${{ secrets.ELAK_FIREBASE_PROJECT_ID }}
+          ELAK_FIREBASE_SENDER_ID: ${{ secrets.ELAK_FIREBASE_SENDER_ID }}
+        run: python3 configure_firebase_ci.py
+
       - name: Build debug APK
         working-directory: elak-okulum/android
         run: gradle :app:assembleDebug --stacktrace
@@ -97,23 +110,23 @@ jobs:
 
       - name: Prepare APK files
         run: |
-          cp elak-okulum/android/app/build/outputs/apk/debug/app-debug.apk ELAK-Okulum-v0.9.3-debug.apk
-          cp elak-okulum/android/app/build/outputs/apk/release/app-release-unsigned.apk ELAK-Okulum-v0.9.3-release-unsigned.apk
+          cp elak-okulum/android/app/build/outputs/apk/debug/app-debug.apk ELAK-Okulum-v0.9.3.1-debug.apk
+          cp elak-okulum/android/app/build/outputs/apk/release/app-release-unsigned.apk ELAK-Okulum-v0.9.3.1-release-unsigned.apk
           cp "$ANDROID_HOME/build-tools/35.0.0/lib/apksigner.jar" apksigner.jar
 
       - name: Upload debug APK
         uses: actions/upload-artifact@v4
         with:
-          name: ELAK-Okulum-v0.9.3-debug
-          path: ELAK-Okulum-v0.9.3-debug.apk
+          name: ELAK-Okulum-v0.9.3.1-debug
+          path: ELAK-Okulum-v0.9.3.1-debug.apk
           if-no-files-found: error
           retention-days: 30
 
       - name: Upload unsigned release APK
         uses: actions/upload-artifact@v4
         with:
-          name: ELAK-Okulum-v0.9.3-release-unsigned
-          path: ELAK-Okulum-v0.9.3-release-unsigned.apk
+          name: ELAK-Okulum-v0.9.3.1-release-unsigned
+          path: ELAK-Okulum-v0.9.3.1-release-unsigned.apk
           if-no-files-found: error
           retention-days: 30
 
