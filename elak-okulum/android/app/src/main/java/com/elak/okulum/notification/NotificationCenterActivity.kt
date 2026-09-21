@@ -1,6 +1,7 @@
 package com.elak.okulum.notification
 
 import android.Manifest
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Color
 import android.graphics.Typeface
@@ -32,7 +33,6 @@ class NotificationCenterActivity : AppCompatActivity() {
     private val red = Color.rgb(220, 38, 38)
     private val green = Color.rgb(5, 150, 105)
     private val orange = Color.rgb(234, 88, 12)
-    private val purple = Color.rgb(124, 58, 237)
     private val bg = Color.rgb(244, 247, 252)
     private val ink = Color.rgb(15, 34, 62)
     private val muted = Color.rgb(100, 116, 139)
@@ -60,10 +60,10 @@ class NotificationCenterActivity : AppCompatActivity() {
         refresh()
     }
 
-    override fun onNewIntent(intent: android.content.Intent?) {
+    override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
-        intent?.getLongExtra("notification_id", 0L)?.takeIf { it > 0 }?.let {
+        intent.getLongExtra("notification_id", 0L).takeIf { it > 0 }?.let {
             NotificationStore.markRead(this, it)
             render()
         }
