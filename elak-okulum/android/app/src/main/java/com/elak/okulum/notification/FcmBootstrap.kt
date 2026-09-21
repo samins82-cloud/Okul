@@ -1,7 +1,6 @@
 package com.elak.okulum.notification
 
 import android.content.Context
-import com.elak.okulum.BuildConfig
 import com.elak.okulum.OkulumSession
 import com.elak.okulum.R
 import com.elak.okulum.auth.CentralApi
@@ -44,13 +43,16 @@ object FcmBootstrap {
         if (token.isBlank()) return
         val session = OkulumSession(context)
         if (!session.hasCentralSession) return
+        val versionName = try {
+            context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "0.9.3.1"
+        } catch (_: Exception) { "0.9.3.1" }
         thread {
             try {
                 CentralApi.registerPushDevice(
                     session.accessToken,
                     token,
                     DeviceIdentity.id(context),
-                    BuildConfig.VERSION_NAME
+                    versionName
                 )
             } catch (_: Exception) { }
         }
