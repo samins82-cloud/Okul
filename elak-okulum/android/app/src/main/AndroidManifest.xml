@@ -13,6 +13,11 @@
         android:usesCleartextTraffic="false">
 
         <activity
+            android:name=".ElakHomeActivity"
+            android:exported="false"
+            android:launchMode="singleTask" />
+
+        <activity
             android:name=".izin.IzinActivityModern"
             android:exported="false"
             android:launchMode="singleTop" />
