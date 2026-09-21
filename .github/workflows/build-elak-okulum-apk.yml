@@ -79,6 +79,10 @@ jobs:
         working-directory: elak-okulum/android
         run: python3 patch_v092_multischool.py
 
+      - name: Apply 0.9.2 404 and 759975 hotfix
+        working-directory: elak-okulum/android
+        run: python3 patch_v092_404_hotfix.py
+
       - name: Build debug APK
         working-directory: elak-okulum/android
         run: gradle :app:assembleDebug --stacktrace
