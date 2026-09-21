@@ -31,13 +31,50 @@ CREATE TABLE users (
     name VARCHAR(150) NOT NULL,
     username VARCHAR(80) NOT NULL,
     password_hash VARCHAR(255) NOT NULL,
-    role ENUM('school_admin','manager','teacher','security','dormitory') NOT NULL DEFAULT 'teacher',
+    role ENUM('school_admin','manager','teacher','security','dormitory','guardian','student','staff') NOT NULL DEFAULT 'teacher',
+    school_scope ENUM('middle','high','both') NOT NULL DEFAULT 'both',
     status TINYINT(1) NOT NULL DEFAULT 1,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     UNIQUE KEY uq_school_username (school_id, username),
     KEY idx_users_school_status (school_id,status),
     CONSTRAINT fk_users_school FOREIGN KEY (school_id) REFERENCES schools(id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+CREATE TABLE user_roles (
+    id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    user_id BIGINT UNSIGNED NOT NULL,
+    role_key ENUM('school_admin','manager','teacher','security','dormitory','guardian','student','staff') NOT NULL,
+    is_primary TINYINT(1) NOT NULL DEFAULT 0,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uq_user_role (user_id, role_key),
+    KEY idx_user_roles_user (user_id,is_primary),
+    CONSTRAINT fk_user_roles_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+CREATE TABLE user_permissions (
+    id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    user_id BIGINT UNSIGNED NOT NULL,
+    permission_key VARCHAR(120) NOT NULL,
+    is_allowed TINYINT(1) NOT NULL DEFAULT 1,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uq_user_permission (user_id, permission_key),
+    KEY idx_user_permissions_user (user_id,is_allowed),
+    CONSTRAINT fk_user_permissions_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+CREATE TABLE user_links (
+    id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    user_id BIGINT UNSIGNED NOT NULL,
+    link_type ENUM('student','class','teacher','guardian','staff') NOT NULL,
+    external_id VARCHAR(100) NOT NULL,
+    label VARCHAR(180) NULL,
+    school_scope ENUM('middle','high','both') NOT NULL DEFAULT 'both',
+    meta_json TEXT NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uq_user_link (user_id, link_type, external_id),
+    KEY idx_user_links_user_type (user_id,link_type),
+    CONSTRAINT fk_user_links_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
 CREATE TABLE modules (
@@ -110,6 +147,24 @@ CREATE TABLE auth_tokens (
     CONSTRAINT fk_auth_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
+CREATE TABLE auth_sessions (
+    id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    user_id BIGINT UNSIGNED NOT NULL,
+    access_token_hash CHAR(64) NOT NULL UNIQUE,
+    refresh_token_hash CHAR(64) NOT NULL UNIQUE,
+    access_expires_at DATETIME NOT NULL,
+    refresh_expires_at DATETIME NOT NULL,
+    device_name VARCHAR(180) NULL,
+    app_version VARCHAR(40) NULL,
+    last_used_at DATETIME NULL,
+    revoked_at DATETIME NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    KEY idx_auth_sessions_access (access_token_hash,access_expires_at,revoked_at),
+    KEY idx_auth_sessions_refresh (refresh_token_hash,refresh_expires_at,revoked_at),
+    KEY idx_auth_sessions_user (user_id,revoked_at),
+    CONSTRAINT fk_auth_sessions_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
 CREATE TABLE audit_logs (
     id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     actor_type ENUM('system_admin','school_user','system') NOT NULL DEFAULT 'system',
@@ -125,12 +180,19 @@ CREATE TABLE audit_logs (
     KEY idx_audit_actor (actor_type,actor_id)
 ) ENGINE=InnoDB;
 
+INSERT IGNORE INTO schools(school_code,school_name,short_name,primary_color,secondary_color,status) VALUES
+('MCOAIHL','Mahmud Celaleddin Ökten Anadolu İmam Hatip Lisesi','MCO AİHL','#081F44','#FFFFFF',1);
+
 INSERT INTO modules (module_key,title,description,category,icon,default_color,module_type,sort_order) VALUES
 ('izin_takip','İzin Takip','Öğrenci çıkış ve dönüş işlemleri','Öğrenci','🪪','#E67E22','web',10),
 ('akilli_rehber','Akıllı Rehber','Öğrenci ve veli iletişim rehberi','İletişim','☎','#2E86C1','web',20),
 ('online_yoklama','Online Yoklama','Örgün, Açık Lise, DYK ve Sosyal Etkinlik yoklamaları','Yoklama','✓','#27AE60','internal',30),
 ('ders_programi','Ders Programı','Günlük ve haftalık ders programı','Akademik','▦','#8E44AD','web',40),
+('veli_randevu','Veli Randevu','Öğretmen görüşme saatleri ve randevular','İletişim','◷','#7C3AED','web',45),
 ('duyurular','Duyurular','Okul ve personel duyuruları','İletişim','🔔','#C0392B','internal',50),
+('akilli_tahta','Akıllı Tahta','QR, kilit ve cihaz yönetimi','Teknoloji','QR','#2563EB','web',55),
 ('belgeler','Belgeler','Sık kullanılan okul belge ve formları','Yönetim','▤','#566573','internal',60),
 ('lgs_yks','LGS / YKS','Deneme, performans ve akademik takip','Akademik','📊','#0F766E','web',70),
-('ogretmen_islemleri','Öğretmen İşlemleri','Nöbet, devamsızlık ve personel işlemleri','Personel','👥','#7C3AED','internal',80);
+('anketler','Anket & Onay','Veli görüşü, izin ve tercih anketleri','İletişim','☑','#059669','internal',75),
+('ogretmen_islemleri','Öğretmen İşlemleri','Nöbet, devamsızlık ve personel işlemleri','Personel','👥','#7C3AED','internal',80),
+('etkinlik_gezi','Etkinlik & Gezi','Katılım ve veli onay süreçleri','Etkinlik','⌖','#EA580C','internal',85);
