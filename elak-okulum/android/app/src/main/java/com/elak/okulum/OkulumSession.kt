@@ -29,6 +29,22 @@ class OkulumSession(context: Context) {
         get() = prefs.getString("school_scope", "both").orEmpty().ifBlank { "both" }
         set(value) { prefs.edit().putString("school_scope", value.ifBlank { "both" }).apply() }
 
+    var schoolCode: String
+        get() = prefs.getString("school_code", "").orEmpty()
+        set(value) { prefs.edit().putString("school_code", value.trim().uppercase()).apply() }
+
+    var schoolName: String
+        get() = LocalCrypto.decrypt(prefs.getString("school_name_enc", ""))
+        set(value) { prefs.edit().putString("school_name_enc", LocalCrypto.encrypt(value.trim())).apply() }
+
+    var schoolShortName: String
+        get() = LocalCrypto.decrypt(prefs.getString("school_short_name_enc", ""))
+        set(value) { prefs.edit().putString("school_short_name_enc", LocalCrypto.encrypt(value.trim())).apply() }
+
+    var schoolLogoUrl: String
+        get() = prefs.getString("school_logo_url", "").orEmpty()
+        set(value) { prefs.edit().putString("school_logo_url", value.trim()).apply() }
+
     var accessToken: String
         get() = LocalCrypto.decrypt(prefs.getString("central_access_enc", ""))
         set(value) { prefs.edit().putString("central_access_enc", LocalCrypto.encrypt(value)).apply() }
@@ -86,10 +102,11 @@ class OkulumSession(context: Context) {
         return keys.any { normalized.contains(it.lowercase()) }
     }
 
-    fun saveCredentials(username: String, password: String) {
+    fun saveCredentials(username: String, password: String, schoolCode: String = this.schoolCode) {
         prefs.edit()
             .putString("username_enc", LocalCrypto.encrypt(username.trim()))
             .putString("password_enc", LocalCrypto.encrypt(password))
+            .putString("school_code", schoolCode.trim().uppercase())
             .apply()
     }
 
@@ -98,7 +115,9 @@ class OkulumSession(context: Context) {
         password: String,
         displayName: String,
         role: String,
-        schoolScope: String
+        schoolScope: String,
+        schoolCode: String = this.schoolCode.ifBlank { "MCOAIHL" },
+        schoolName: String = this.schoolName.ifBlank { "Mahmud Celaleddin Ökten Anadolu İmam Hatip Lisesi" }
     ) {
         prefs.edit()
             .putString("username_enc", LocalCrypto.encrypt(username.trim()))
@@ -107,6 +126,8 @@ class OkulumSession(context: Context) {
             .putString("role", role.trim())
             .putString("roles_csv", role.trim())
             .putString("school_scope", schoolScope.trim().ifBlank { "both" })
+            .putString("school_code", schoolCode.trim().uppercase())
+            .putString("school_name_enc", LocalCrypto.encrypt(schoolName.trim()))
             .putBoolean("central_enabled", false)
             .apply()
     }
@@ -129,6 +150,10 @@ class OkulumSession(context: Context) {
             .putString("role", profile.primaryRole.trim())
             .putString("roles_csv", profile.roles.joinToString(","))
             .putString("school_scope", profile.schoolScope.ifBlank { "both" })
+            .putString("school_code", profile.schoolCode.trim().uppercase())
+            .putString("school_name_enc", LocalCrypto.encrypt(profile.schoolName.trim()))
+            .putString("school_short_name_enc", LocalCrypto.encrypt(profile.schoolShortName.trim()))
+            .putString("school_logo_url", profile.schoolLogoUrl.trim())
             .putString("permissions_csv", profile.permissions.joinToString(","))
             .putString("links_json", links.toString())
             .putString("central_access_enc", LocalCrypto.encrypt(auth.accessToken))
@@ -162,6 +187,10 @@ class OkulumSession(context: Context) {
             .putString("role", profile.primaryRole.trim())
             .putString("roles_csv", profile.roles.joinToString(","))
             .putString("school_scope", profile.schoolScope.ifBlank { "both" })
+            .putString("school_code", profile.schoolCode.trim().uppercase())
+            .putString("school_name_enc", LocalCrypto.encrypt(profile.schoolName.trim()))
+            .putString("school_short_name_enc", LocalCrypto.encrypt(profile.schoolShortName.trim()))
+            .putString("school_logo_url", profile.schoolLogoUrl.trim())
             .putString("permissions_csv", profile.permissions.joinToString(","))
             .putString("links_json", links.toString())
             .apply()
