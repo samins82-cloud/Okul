@@ -1,5 +1,8 @@
 USE elak_okulum;
 
+INSERT IGNORE INTO schools(school_code,school_name,short_name,primary_color,secondary_color,status)
+VALUES('MCOAIHL','Mahmud Celaleddin Ökten Anadolu İmam Hatip Lisesi','MCO AİHL','#081F44','#FFFFFF',1);
+
 ALTER TABLE users
     MODIFY COLUMN role ENUM('school_admin','manager','teacher','security','dormitory','guardian','student','staff') NOT NULL DEFAULT 'teacher',
     ADD COLUMN school_scope ENUM('middle','high','both') NOT NULL DEFAULT 'both' AFTER role;
