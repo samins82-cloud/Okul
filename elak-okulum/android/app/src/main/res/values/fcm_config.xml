@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Firebase istemci değerleri tanımlanana kadar boş bırakılır; uygulama polling ile çalışmaya devam eder. -->
-    <string name="google_app_id" translatable="false"></string>
-    <string name="google_api_key" translatable="false"></string>
-    <string name="project_id" translatable="false"></string>
-    <string name="gcm_defaultSenderId" translatable="false"></string>
+    <!-- ELAK Okulum Firebase Android client configuration. Server service-account credentials are NOT stored here. -->
+    <string name="google_app_id" translatable="false">1:472259835903:android:d132c070f5154dd90f99ca</string>
+    <string name="google_api_key" translatable="false">AIzaSyBQ00NaWYbDnMLKmH0DPREMSs7o43fZj5w</string>
+    <string name="project_id" translatable="false">elak-okulum</string>
+    <string name="gcm_defaultSenderId" translatable="false">472259835903</string>
 </resources>
