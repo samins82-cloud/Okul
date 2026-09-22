@@ -20,12 +20,27 @@ Tablo öneki mevcut `config.php` içindeki `table_prefix` değerinden alınır.
 
 Firebase Console / Google Cloud üzerinden Firebase Cloud Messaging HTTP v1 yetkili bir servis hesabı JSON anahtarı oluşturun.
 
-**JSON dosyasını public web köküne koymayın.** Mümkünse `public_html` dışında, yalnız PHP'nin okuyabildiği bir dizinde tutun.
+**JSON dosyasını `public_html` içine koymayın.** `private` isimli bir alt klasör de güvenli web dışı alan sayılmaz; örneğin `public_html/private/anahtar.json` kullanılmamalıdır.
+
+Önerilen yapı:
+
+```text
+HOSTING-HESAP-KOKU/
+├── private/
+│   └── elak-okulum-firebase-adminsdk.json
+└── public_html/
+    ├── index.php
+    ├── api.php
+    ├── db.php
+    └── mobile-push.php
+```
+
+Yeni push paketi servis hesabı dosyasının `public_html` veya aktif `DOCUMENT_ROOT` altında olduğunu tespit ederse güvenlik amacıyla anahtarı **kullanmayı reddeder**.
 
 Mevcut `config.local.php` dosyanıza yalnız dosya yolunu ve worker anahtarını ekleyin:
 
 ```php
-'firebase_service_account_file' => '/SUNUCUDA/GUVENLI/DIZIN/elak-firebase-service-account.json',
+'firebase_service_account_file' => '/SUNUCUDA/WEB-DISI/private/elak-okulum-firebase-adminsdk.json',
 'push_worker_key' => 'UZUN-RASGELE-GIZLI-ANAHTAR',
 ```
 
@@ -33,14 +48,9 @@ Servis hesabı özel anahtarını GitHub'a commit etmeyin ve APK içine koymayı
 
 ## 3. Android Firebase istemci değerleri
 
-GitHub repository secrets alanına şu dört değer bir kez tanımlanır:
+Android Firebase istemci yapılandırması `com.elak.okulum` paket adıyla yapılır. İstemci değerleri APK içinde Firebase bağlantısı için kullanılır; servis hesabının özel anahtarı Android uygulamasına konmaz.
 
-- `ELAK_FIREBASE_APP_ID`
-- `ELAK_FIREBASE_API_KEY`
-- `ELAK_FIREBASE_PROJECT_ID`
-- `ELAK_FIREBASE_SENDER_ID`
-
-Bunlar tanımlı değilse APK sorunsuz derlenir ve 15 dakikalık WorkManager senkronizasyonuna geri düşer. Tanımlandığında FCM token otomatik alınır ve `mobile-push.php?action=device_register` ile ELAK CORE oturumuna bağlanır.
+Firebase istemci ayarı bulunmazsa APK 15 dakikalık WorkManager senkronizasyonuna geri düşer. İstemci ayarı bulunduğunda FCM token otomatik alınır ve `mobile-push.php?action=device_register` ile ELAK CORE oturumuna bağlanır.
 
 ## 4. Worker / cron
 
