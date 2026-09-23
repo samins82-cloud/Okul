@@ -7,7 +7,7 @@
 
     <application
         android:theme="@style/Theme.ELAKOkulum"
-        android:label="ELAK Okulum"
+        android:label="${appLabel}"
         android:icon="@drawable/ic_elak_okulum"
         android:roundIcon="@drawable/ic_elak_okulum"
         android:usesCleartextTraffic="false">
