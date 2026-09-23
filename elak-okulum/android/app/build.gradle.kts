@@ -17,8 +17,8 @@ android {
         applicationId = "com.elak.okulum"
         minSdk = 24
         targetSdk = 35
-        versionCode = 33
-        versionName = "0.9.0"
+        versionCode = 35
+        versionName = "0.9.2"
         manifestPlaceholders["appLabel"] = "ELAK Okulum"
     }
 
