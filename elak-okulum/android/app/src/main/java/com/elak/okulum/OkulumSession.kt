@@ -60,6 +60,10 @@ class OkulumSession(context: Context) {
         get() = prefs.getString("permissions_json", "{}").orEmpty().ifBlank { "{}" }
         set(value) { prefs.edit().putString("permissions_json", value.ifBlank { "{}" }).apply() }
 
+    var notificationsJson: String
+        get() = prefs.getString("notifications_json", "[]").orEmpty().ifBlank { "[]" }
+        set(value) { prefs.edit().putString("notifications_json", value.ifBlank { "[]" }).apply() }
+
     var summaryJson: String
         get() = prefs.getString("summary_json", "{}").orEmpty().ifBlank { "{}" }
         set(value) { prefs.edit().putString("summary_json", value.ifBlank { "{}" }).apply() }
@@ -96,6 +100,7 @@ class OkulumSession(context: Context) {
             .putString("modules_json", state.licenseModules.toString())
             .putString("catalog_json", state.catalog.toString())
             .putString("permissions_json", state.permissions.toString())
+            .putString("notifications_json", state.announcements.toString())
             .putString("summary_json", state.summary.toString())
             .putString("settings_json", state.settings.toString())
         if (password != null) e.putString("password_enc", LocalCrypto.encrypt(password))
@@ -107,7 +112,7 @@ class OkulumSession(context: Context) {
     } catch (_: Exception) { false }
 
     fun catalog(): JSONArray = try { JSONArray(catalogJson) } catch (_: Exception) { JSONArray() }
-
+    fun notifications(): JSONArray = try { JSONArray(notificationsJson) } catch (_: Exception) { JSONArray() }
     fun permissions(): JSONObject = try { JSONObject(permissionsJson) } catch (_: Exception) { JSONObject() }
 
     fun hasPermission(key: String): Boolean {
@@ -116,10 +121,7 @@ class OkulumSession(context: Context) {
     }
 
     fun clearModuleSessionsOnly() {
-        prefs.edit()
-            .remove("core_cookie_enc")
-            .remove("csrf_enc")
-            .apply()
+        prefs.edit().remove("core_cookie_enc").remove("csrf_enc").apply()
     }
 
     fun clear() { prefs.edit().clear().apply() }
