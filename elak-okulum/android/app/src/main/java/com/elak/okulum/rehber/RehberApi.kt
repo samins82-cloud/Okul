@@ -9,8 +9,9 @@ import java.net.HttpURLConnection
 import java.net.URL
 
 object RehberApi {
-    private const val BASE = "https://elak.mcoaihl.com/rehber/"
-    private const val UA = "ELAK-Okulum/0.8.3 Android"
+    private const val BASE = "https://elak.mcoaihl.com/core-rehber.php"
+    private const val LEGACY_BASE = "https://elak.mcoaihl.com/rehber/"
+    private const val UA = "ELAK-Okulum/0.9.8 Android"
 
     data class LoginResult(
         val token: String,
@@ -19,8 +20,11 @@ object RehberApi {
         val schoolScope: String = ""
     )
 
-    fun login(username: String, password: String): LoginResult {
+    fun login(username: String, password: String): LoginResult = login("", username, password)
+
+    fun login(orgCode: String, username: String, password: String): LoginResult {
         val body = JSONObject()
+            .put("org_code", orgCode.trim())
             .put("username", username)
             .put("password", password)
             .put("device", "android")
@@ -34,7 +38,7 @@ object RehberApi {
             token = token,
             userName = pickString(data, "name", "display_name", "username")
                 ?: user?.let { pickString(it, "name", "display_name", "username") }.orEmpty(),
-            role = pickString(data, "role") ?: user?.let { pickString(it, "role") }.orEmpty(),
+            role = pickString(data, "role") ?: user?.let { pickString(it, "role", "role_name") }.orEmpty(),
             schoolScope = pickString(data, "school_scope", "schoolScope").orEmpty()
         )
     }
@@ -48,7 +52,7 @@ object RehberApi {
         requestJson("?api=change_summary&since=" + java.net.URLEncoder.encode(since, "UTF-8"), "GET", token, null)
 
     fun appVersion(): JSONObject =
-        requestJson("?api=app_version&_ts=" + System.currentTimeMillis(), "GET", null, null)
+        requestJsonAbsolute(LEGACY_BASE + "?api=app_version&_ts=" + System.currentTimeMillis(), "GET", null, null)
 
     fun studentDetail(token: String, id: Long): JSONObject =
         requestJson("?api=student_detail&id=" + id, "GET", token, null)
@@ -97,18 +101,13 @@ object RehberApi {
         }
     }
 
-    fun webSso(token: String): String? {
-        return try {
-            val json = requestJson("?api=web_sso", "POST", token, JSONObject())
-            val data = json.optJSONObject("data") ?: json
-            pickString(data, "token", "sso_token", "code")
-        } catch (_: Exception) {
-            null
-        }
-    }
+    fun webSso(token: String): String? = null
 
-    private fun requestJson(path: String, method: String, token: String?, body: JSONObject?): JSONObject {
-        val conn = (URL(BASE + path).openConnection() as HttpURLConnection).apply {
+    private fun requestJson(path: String, method: String, token: String?, body: JSONObject?): JSONObject =
+        requestJsonAbsolute(BASE + path, method, token, body)
+
+    private fun requestJsonAbsolute(url: String, method: String, token: String?, body: JSONObject?): JSONObject {
+        val conn = (URL(url).openConnection() as HttpURLConnection).apply {
             requestMethod = method
             connectTimeout = 15000
             readTimeout = 30000
