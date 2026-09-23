@@ -33,55 +33,56 @@ object IzinApi {
         return parseAppBootstrap(html,refreshed)
     }
 
-    fun dashboard(session:IzinSession):JSONObject=requestJson(session,"dashboard")
+    fun dashboard(session:IzinSession):JSONObject{
+        val data=requestJson(session,"dashboard")
+        try{
+            val outside=permissions(session,"","Dışarıda");var today=0
+            for(i in 0 until outside.length()){val p=outside.optJSONObject(i)?:continue;if(isToday(p.optString("exited_at")))today++}
+            data.optJSONObject("stats")?.put("outside",today)
+        }catch(_:Exception){}
+        return data
+    }
+
     fun students(session:IzinSession,query:String=""):JSONArray=requestJson(session,"students","&q=${enc(query)}").optJSONArray("students")?:JSONArray()
     fun studentSearch(session:IzinSession,query:String):JSONArray=requestJson(session,"student_search","&q=${enc(query)}").optJSONArray("students")?:JSONArray()
     fun permissions(session:IzinSession,query:String="",status:String=""):JSONArray=requestJson(session,"permissions","&q=${enc(query)}&status=${enc(status)}").optJSONArray("permissions")?:JSONArray()
-    fun securityQueue(session:IzinSession):JSONObject=requestJson(session,"security_queue")
 
-    /**
-     * Akıllı Rehber kaydını İzin Takip'in işlem tablosuna okul numarası üzerinden bağlar.
-     * Öğrenci zaten varsa güncel ad/sınıf/veli bilgileriyle yeniler; yoksa ve kullanıcıda
-     * students_manage yetkisi varsa oluşturur. İzin geçmişi silinmez.
-     */
+    fun securityQueue(session:IzinSession):JSONObject{
+        val data=requestJson(session,"security_queue");val raw=data.optJSONArray("returning")?:JSONArray();val today=JSONArray()
+        for(i in 0 until raw.length()){val row=raw.optJSONObject(i)?:continue;if(isToday(row.optString("exited_at")))today.put(row)}
+        data.put("returning",today);return data
+    }
+
     fun syncStudentFromDirectory(session:IzinSession,directoryStudent:JSONObject):JSONObject{
-        val no=directoryStudent.optString("student_no").trim()
-        val name=directoryStudent.optString("full_name").trim()
-        val clazz=directoryStudent.optString("class_name").trim()
+        val no=directoryStudent.optString("student_no").trim();val name=directoryStudent.optString("full_name").trim();val clazz=directoryStudent.optString("class_name").trim()
         if(no.isBlank()||name.isBlank()||clazz.isBlank())throw IllegalStateException("Öğrencinin okul no, ad veya sınıf bilgisi eksik.")
-
         val rows=students(session,no);var existing:JSONObject?=null
-        for(i in 0 until rows.length()){
-            val x=rows.optJSONObject(i)?:continue
-            if(normalizeNo(x.optString("student_no"))==normalizeNo(no)){existing=x;break}
-        }
-
+        for(i in 0 until rows.length()){val x=rows.optJSONObject(i)?:continue;if(normalizeNo(x.optString("student_no"))==normalizeNo(no)){existing=x;break}}
         val canManage=session.permissions.contains("students_manage")
         if(existing==null&&!canManage)throw IllegalStateException("Bu öğrenci İzin Takip kayıtlarında yok. Öğrenci eşitleme yetkisi olan bir idareciyle bir kez açılması gerekiyor.")
-
         var id=existing?.optLong("id")?:0L
         if(canManage){
-            val fields=linkedMapOf(
-                "csrf" to session.csrf,
-                "id" to if(id>0)id.toString() else "",
-                "full_name" to name,
-                "student_no" to no,
-                "class_name" to clazz,
-                "school_level" to directoryStudent.optString("school_level").ifBlank{inferLevel(clazz)},
-                "gender" to directoryStudent.optString("gender"),
-                "parent_name" to directoryStudent.optString("parent_name"),
-                "parent_phone" to directoryStudent.optString("parent_phone"),
+            val saved=requestForm(session,"student_save",linkedMapOf(
+                "csrf" to session.csrf,"id" to if(id>0)id.toString() else "","full_name" to name,"student_no" to no,"class_name" to clazz,
+                "school_level" to directoryStudent.optString("school_level").ifBlank{inferLevel(clazz)},"gender" to directoryStudent.optString("gender"),
+                "parent_name" to directoryStudent.optString("parent_name"),"parent_phone" to directoryStudent.optString("parent_phone"),
                 "authorized_person" to directoryStudent.optString("authorized_person")
-            )
-            val saved=requestForm(session,"student_save",fields)
-            id=saved.optLong("id",id)
+            ));id=saved.optLong("id",id)
         }
         if(id<=0L)throw IllegalStateException("Öğrenci İzin Takip kaydı oluşturulamadı.")
         return JSONObject(directoryStudent.toString()).put("id",id)
     }
 
-    fun createPermission(session:IzinSession,studentId:Long,reason:String,receiver:String,approvalMethod:String,sameDayReturn:Boolean,note:String):JSONObject=
-        requestJson(session,"permission_create",method="POST",body=JSONObject().put("student_id",studentId).put("reason",reason).put("receiver",receiver).put("approval_method",approvalMethod).put("same_day_return",if(sameDayReturn)1 else 0).put("note",note))
+    fun syncStudentContact(session:IzinSession,student:JSONObject):JSONObject=syncStudentFromDirectory(session,student)
+
+    fun createPermission(
+        session:IzinSession,studentId:Long,reason:String,receiver:String,approvalMethod:String,sameDayReturn:Boolean,note:String,
+        parentName:String="",parentPhone:String="",authorizedPerson:String=""
+    ):JSONObject=requestJson(session,"permission_create",method="POST",body=JSONObject()
+        .put("student_id",studentId).put("reason",reason).put("receiver",receiver).put("approval_method",approvalMethod)
+        .put("same_day_return",if(sameDayReturn)1 else 0).put("note",note).put("parent_name",parentName)
+        .put("parent_phone",parentPhone).put("authorized_person",authorizedPerson))
+
     fun securityExit(session:IzinSession,permissionId:Long):JSONObject=requestJson(session,"security_exit",method="POST",body=JSONObject().put("id",permissionId))
     fun securityReturn(session:IzinSession,permissionId:Long):JSONObject=requestJson(session,"security_return",method="POST",body=JSONObject().put("id",permissionId))
     fun cancelPermission(session:IzinSession,permissionId:Long):JSONObject=requestJson(session,"permission_cancel",method="POST",body=JSONObject().put("id",permissionId))
@@ -89,23 +90,16 @@ object IzinApi {
     private fun requestJson(session:IzinSession,action:String,query:String="",method:String="GET",body:JSONObject?=null):JSONObject{
         if(!session.isReady)throw IllegalStateException("İzin Takip oturumu bulunamadı.")
         val scope=if(session.role=="admin")"&view_scope=${enc(session.schoolScope)}" else ""
-        val conn=open(BASE+"api.php?action=${enc(action)}$query$scope&_=${System.currentTimeMillis()}",method,session.cookie).apply{
-            setRequestProperty("Accept","application/json")
-            if(method!="GET"){doOutput=true;setRequestProperty("Content-Type","application/json; charset=UTF-8");setRequestProperty("X-CSRF-Token",session.csrf)}
-        }
+        val conn=open(BASE+"api.php?action=${enc(action)}$query$scope&_=${System.currentTimeMillis()}",method,session.cookie).apply{setRequestProperty("Accept","application/json");if(method!="GET"){doOutput=true;setRequestProperty("Content-Type","application/json; charset=UTF-8");setRequestProperty("X-CSRF-Token",session.csrf)}}
         if(method!="GET"){val payload=JSONObject(body?.toString()?:"{}").put("csrf",session.csrf);conn.outputStream.use{it.write(payload.toString().toByteArray(Charsets.UTF_8))}}
         return parseJsonResponse(session,conn)
     }
 
     private fun requestForm(session:IzinSession,action:String,fields:Map<String,String>):JSONObject{
         if(!session.isReady)throw IllegalStateException("İzin Takip oturumu bulunamadı.")
-        val scope=if(session.role=="admin")"&view_scope=${enc(session.schoolScope)}" else ""
-        val body=fields.entries.joinToString("&"){"${enc(it.key)}=${enc(it.value)}"}
-        val conn=open(BASE+"api.php?action=${enc(action)}$scope&_=${System.currentTimeMillis()}","POST",session.cookie).apply{
-            doOutput=true;setRequestProperty("Accept","application/json");setRequestProperty("Content-Type","application/x-www-form-urlencoded; charset=UTF-8");setRequestProperty("X-CSRF-Token",session.csrf)
-        }
-        conn.outputStream.use{it.write(body.toByteArray(Charsets.UTF_8))}
-        return parseJsonResponse(session,conn)
+        val scope=if(session.role=="admin")"&view_scope=${enc(session.schoolScope)}" else "";val body=fields.entries.joinToString("&"){"${enc(it.key)}=${enc(it.value)}"}
+        val conn=open(BASE+"api.php?action=${enc(action)}$scope&_=${System.currentTimeMillis()}","POST",session.cookie).apply{doOutput=true;setRequestProperty("Accept","application/json");setRequestProperty("Content-Type","application/x-www-form-urlencoded; charset=UTF-8");setRequestProperty("X-CSRF-Token",session.csrf)}
+        conn.outputStream.use{it.write(body.toByteArray(Charsets.UTF_8))};return parseJsonResponse(session,conn)
     }
 
     private fun parseJsonResponse(session:IzinSession,conn:HttpURLConnection):JSONObject{
@@ -118,13 +112,12 @@ object IzinApi {
 
     private fun parseAppBootstrap(html:String,cookie:String):LoginResult{
         val csrfRaw=findGroup(html,"csrf\\s*:\\s*(\"(?:\\\\.|[^\"])*\")")?:throw IllegalStateException("İzin Takip güvenlik anahtarı alınamadı.")
-        val roleRaw=findGroup(html,"role\\s*:\\s*(\"(?:\\\\.|[^\"])*\")")?:"\"\""
-        val userRaw=findGroup(html,"user\\s*:\\s*(\\{.*?\\})\\s*,\\s*permissions\\s*:")?:"{}"
-        val permissionsRaw=findGroup(html,"permissions\\s*:\\s*(\\[.*?\\])\\s*,\\s*permissionCatalog\\s*:")?:"[]"
+        val roleRaw=findGroup(html,"role\\s*:\\s*(\"(?:\\\\.|[^\"])*\")")?:"\"\"";val userRaw=findGroup(html,"user\\s*:\\s*(\\{.*?\\})\\s*,\\s*permissions\\s*:")?:"{}";val permissionsRaw=findGroup(html,"permissions\\s*:\\s*(\\[.*?\\])\\s*,\\s*permissionCatalog\\s*:")?:"[]"
         val csrf=JSONObject("{\"v\":$csrfRaw}").optString("v");val role=JSONObject("{\"v\":$roleRaw}").optString("v");val user=JSONObject(userRaw);val arr=JSONArray(permissionsRaw);val permissions=ArrayList<String>(arr.length());for(i in 0 until arr.length())arr.optString(i).trim().takeIf{it.isNotEmpty()}?.let{permissions.add(it)}
         return LoginResult(cookie,csrf,role,user.optString("full_name"),user.optString("username"),user.optString("admin_access","authorized"),user.optString("school_scope","both").ifBlank{"both"},permissions)
     }
 
+    private fun isToday(v:String):Boolean{if(v.length<10)return false;val today=java.text.SimpleDateFormat("yyyy-MM-dd",java.util.Locale.US).format(java.util.Date());return v.substring(0,10)==today}
     private fun inferLevel(clazz:String):String{val g=Regex("(?:^|[^0-9])(5|6|7|8|9|10|11|12)(?:[^0-9]|$)").find(clazz)?.groupValues?.getOrNull(1)?.toIntOrNull()?:5;return if(g>=9)"high" else "middle"}
     private fun normalizeNo(v:String):String{val d=v.filter{it.isDigit()};return if(d.isBlank())v.trim().lowercase() else d.trimStart('0').ifBlank{"0"}}
     private fun open(url:String,method:String,cookie:String?):HttpURLConnection=(URL(url).openConnection() as HttpURLConnection).apply{requestMethod=method;connectTimeout=15000;readTimeout=30000;useCaches=false;setRequestProperty("Accept-Language","tr-TR,tr;q=0.9");setRequestProperty("User-Agent",UA);if(!cookie.isNullOrBlank())setRequestProperty("Cookie",cookie)}
