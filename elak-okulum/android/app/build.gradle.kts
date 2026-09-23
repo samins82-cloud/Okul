@@ -12,6 +12,16 @@ android {
         versionName = "0.9.0"
     }
 
+    buildTypes {
+        getByName("debug") {
+            // GitHub hosted runners create a different temporary debug signing key
+            // on each build. Use a separate package id for test APKs so they can be
+            // installed alongside the production app without signature conflicts.
+            applicationIdSuffix = ".test"
+            versionNameSuffix = "-test"
+        }
+    }
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
