@@ -7,19 +7,10 @@ api = ROOT / "app/src/main/java/com/elak/okulum/izin/IzinApi.kt"
 
 s = activity.read_text(encoding="utf-8")
 
-# Öğrenciler ekranından seçilen güncel Rehber öğrencisini Yeni İzin ekranına taşı.
-if "pendingDirectoryStudent" not in s:
-    s, n = re.subn(
-        r'(private\s+var\s+selectedStudent\s*:\s*JSONObject\?\s*=\s*null\s*\n)',
-        r'\1    private var pendingDirectoryStudent: JSONObject? = null\n',
-        s,
-        count=1
-    )
-    if n != 1:
-        raise SystemExit("selectedStudent property marker missing")
-
 pat = re.compile(r'''    private fun showStudents\(\) \{.*?\n    \}\n\n    private fun showNewPermission\(\) \{''', re.S)
-new_block = r'''    private fun showStudents() {
+new_block = r'''    private var pendingDirectoryStudent: JSONObject? = null
+
+    private fun showStudents() {
         currentNav = "students"; selectNav(currentNav); titleText.text = "İzin Takip • Öğrenciler"
         val page = pageColumn()
         page.addView(hero("Öğrenciler", "Güncel öğrenci kaynağı Akıllı Rehber'dir. Sınıf seçin; öğrenciyi seçip doğrudan izin oluşturun."))
@@ -146,18 +137,24 @@ new_block = r'''    private fun showStudents() {
     private fun showNewPermission() {'''
 s, n = pat.subn(lambda _m: new_block, s, count=1)
 if n != 1:
-    raise SystemExit("showStudents marker missing")
+    raise SystemExit("showStudents/showNewPermission marker missing")
 
-# Yeni İzin ekranına Öğrenciler sayfasından gelen seçimi taşı; menüden doğrudan açıldığında boş başlar.
+# Öğrenciler ekranından gelen seçimi Yeni İzin ekranına taşı. Menüden doğrudan
+# açılışta mevcut davranış korunur.
 start=s.find('    private fun showNewPermission() {')
 if start<0:
     raise SystemExit("showNewPermission start missing")
 end=s.find('\n    private fun ',start+10)
 if end<0:end=len(s)
 sub=s[start:end]
-sub,n=re.subn(r'selectedStudent\s*=\s*null', 'selectedStudent = pendingDirectoryStudent; pendingDirectoryStudent = null', sub, count=1)
-if n!=1:
-    raise SystemExit("showNewPermission selectedStudent reset missing")
+
+# Farklı UI tabanlarında reset ifadesi aynı satırda veya ayrı satırda bulunabilir.
+if re.search(r'selectedStudent\s*=\s*null',sub):
+    sub=re.sub(r'selectedStudent\s*=\s*null','selectedStudent = pendingDirectoryStudent; pendingDirectoryStudent = null',sub,count=1)
+else:
+    brace=sub.find('{')
+    sub=sub[:brace+1]+'\n        selectedStudent = pendingDirectoryStudent; pendingDirectoryStudent = null'+sub[brace+1:]
+
 needle='        showContent(wrapScroll(page))\n'
 prefill='''        selectedStudent?.let { chosen ->
             selectedBox.removeAllViews()
@@ -173,7 +170,6 @@ s=s[:start]+sub+s[end:]
 
 activity.write_text(s, encoding="utf-8")
 
-# Güncel API sürümünü eski UA regexleriyle geri düşürme.
 a=api.read_text(encoding="utf-8")
 a=re.sub(r'private const val UA = "ELAK-Okulum/[0-9.]+ Android"','private const val UA = "ELAK-Okulum/0.9.3 Android"',a)
 api.write_text(a, encoding="utf-8")
