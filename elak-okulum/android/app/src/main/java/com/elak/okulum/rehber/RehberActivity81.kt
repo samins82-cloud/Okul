@@ -5,10 +5,19 @@ import android.os.Bundle
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import com.elak.okulum.MainActivity
+import com.elak.okulum.OkulumSession
+import kotlin.concurrent.thread
 
 class RehberActivity81 : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        val core = OkulumSession(this)
+        if (!core.moduleEnabled("akilli_rehber")) {
+            Toast.makeText(this, "Akıllı Rehber kurum lisansında pasif.", Toast.LENGTH_LONG).show()
+            finish()
+            return
+        }
 
         val session = RehberSession(this)
         if (!session.token.isNullOrBlank()) {
@@ -16,19 +25,40 @@ class RehberActivity81 : AppCompatActivity() {
             return
         }
 
-        // Akıllı Rehber kendi içinde kullanıcı adı/şifre istemez.
-        // Rehber tokenı yalnızca ana ELAK Okulum oturumu sırasında oluşturulur.
-        Toast.makeText(
-            this,
-            "Akıllı Rehber, ELAK Okulum oturumunuzla bağlanacak.",
-            Toast.LENGTH_SHORT
-        ).show()
+        val user = core.username
+        val pass = core.password
+        if (user.isBlank() || pass.isBlank()) {
+            Toast.makeText(this, "ELAK CORE oturumu gerekli.", Toast.LENGTH_SHORT).show()
+            startActivity(Intent(this, MainActivity::class.java))
+            finish()
+            return
+        }
 
-        startActivity(Intent(this, MainActivity::class.java).apply {
-            putExtra("elak_force_web", true)
-            putExtra("elak_start_url", "https://elak.mcoaihl.com/okulum/")
-        })
-        finish()
+        thread {
+            var ok = false
+            try {
+                val login = RehberApi.login(user, pass)
+                session.token = login.token
+                session.username = user
+                CallerCache(this).replaceFromSync(RehberApi.sync(login.token))
+                session.lastSync = System.currentTimeMillis()
+                ok = true
+            } catch (_: Exception) { }
+
+            runOnUiThread {
+                if (isFinishing || isDestroyed) return@runOnUiThread
+                if (ok) openRehber()
+                else {
+                    Toast.makeText(
+                        this,
+                        "Akıllı Rehber bağlantısı hazırlanamadı. ELAK hesabınızla yeniden giriş yapın.",
+                        Toast.LENGTH_LONG
+                    ).show()
+                    startActivity(Intent(this, MainActivity::class.java))
+                    finish()
+                }
+            }
+        }
     }
 
     private fun openRehber() {
