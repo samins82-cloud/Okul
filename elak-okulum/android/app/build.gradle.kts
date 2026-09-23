@@ -1,4 +1,13 @@
+import java.util.Base64
+
 plugins { id("com.android.application"); id("org.jetbrains.kotlin.android") }
+
+val testKeystore = rootProject.file("test-signing/elak-test.jks")
+val testKeystoreB64 = rootProject.file("test-signing/elak-test.jks.b64")
+if (!testKeystore.exists() && testKeystoreB64.exists()) {
+    testKeystore.parentFile.mkdirs()
+    testKeystore.writeBytes(Base64.getMimeDecoder().decode(testKeystoreB64.readText().trim()))
+}
 
 android {
     namespace = "com.elak.okulum"
@@ -13,14 +22,21 @@ android {
         manifestPlaceholders["appLabel"] = "ELAK Okulum"
     }
 
+    signingConfigs {
+        create("test") {
+            storeFile = testKeystore
+            storePassword = "elaktest2026"
+            keyAlias = "elaktest"
+            keyPassword = "elaktest2026"
+        }
+    }
+
     buildTypes {
         getByName("debug") {
-            // GitHub hosted runners create a different temporary debug signing key
-            // on each build. Use a separate package id for test APKs so they can be
-            // installed alongside the production app without signature conflicts.
             applicationIdSuffix = ".test"
             versionNameSuffix = "-test"
             manifestPlaceholders["appLabel"] = "ELAK Okulum Test"
+            signingConfig = signingConfigs.getByName("test")
         }
     }
 
