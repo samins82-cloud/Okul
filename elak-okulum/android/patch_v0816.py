@@ -8,7 +8,8 @@ api = ROOT / "app/src/main/java/com/elak/okulum/izin/IzinApi.kt"
 s = activity.read_text(encoding="utf-8")
 
 pat = re.compile(r'''    private fun showStudents\(\) \{.*?\n    \}\n\n    private fun showNewPermission\(\) \{''', re.S)
-new_block = r'''    private var pendingDirectoryStudent: JSONObject? = null
+new_block = r'''    private var selectedStudent: JSONObject? = null
+    private var pendingDirectoryStudent: JSONObject? = null
 
     private fun showStudents() {
         currentNav = "students"; selectNav(currentNav); titleText.text = "İzin Takip • Öğrenciler"
@@ -139,8 +140,6 @@ s, n = pat.subn(lambda _m: new_block, s, count=1)
 if n != 1:
     raise SystemExit("showStudents/showNewPermission marker missing")
 
-# Öğrenciler ekranından gelen seçimi Yeni İzin ekranına taşı. Menüden doğrudan
-# açılışta mevcut davranış korunur.
 start=s.find('    private fun showNewPermission() {')
 if start<0:
     raise SystemExit("showNewPermission start missing")
@@ -148,7 +147,6 @@ end=s.find('\n    private fun ',start+10)
 if end<0:end=len(s)
 sub=s[start:end]
 
-# Farklı UI tabanlarında reset ifadesi aynı satırda veya ayrı satırda bulunabilir.
 if re.search(r'selectedStudent\s*=\s*null',sub):
     sub=re.sub(r'selectedStudent\s*=\s*null','selectedStudent = pendingDirectoryStudent; pendingDirectoryStudent = null',sub,count=1)
 else:
