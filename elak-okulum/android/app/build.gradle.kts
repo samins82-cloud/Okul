@@ -10,6 +10,7 @@ android {
         targetSdk = 35
         versionCode = 33
         versionName = "0.9.0"
+        manifestPlaceholders["appLabel"] = "ELAK Okulum"
     }
 
     buildTypes {
@@ -19,6 +20,7 @@ android {
             // installed alongside the production app without signature conflicts.
             applicationIdSuffix = ".test"
             versionNameSuffix = "-test"
+            manifestPlaceholders["appLabel"] = "ELAK Okulum Test"
         }
     }
 
