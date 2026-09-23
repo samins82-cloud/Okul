@@ -9,7 +9,7 @@ import java.net.URL
 
 object OkulumCoreApi {
     private const val API = "https://elak.mcoaihl.com/api.php"
-    private const val UA = "ELAK-Okulum/0.9.2 Android"
+    private const val UA = "ELAK-Okulum/0.9.3 Android"
 
     data class CoreState(
         val cookie: String,
@@ -25,6 +25,7 @@ object OkulumCoreApi {
         val licenseModules: JSONObject,
         val permissions: JSONObject,
         val catalog: JSONArray,
+        val announcements: JSONArray,
         val summary: JSONObject,
         val settings: JSONObject
     )
@@ -49,9 +50,6 @@ object OkulumCoreApi {
         val logged = request("school_login", "POST", first.cookie, csrf, body)
         val cookie = logged.cookie.ifBlank { first.cookie }
         val loggedCsrf = logged.json.optString("csrf").ifBlank { csrf }
-
-        // school_login lisans ve kullanıcıyı döndürür; ikinci bootstrap katalog,
-        // kurum ayarları ve güncel oturum durumunu tek yanıtta tamamlar.
         val boot = request("bootstrap", "GET", cookie, loggedCsrf, null)
         return parseState(
             boot.json,
@@ -85,9 +83,6 @@ object OkulumCoreApi {
             ?: throw IllegalStateException("Kurum oturumu sona ermiş veya lisans pasif.")
         val user = root.optJSONObject("user")
             ?: throw IllegalStateException("Kullanıcı oturumu alınamadı.")
-        val modules = license.optJSONObject("modules") ?: JSONObject()
-        val perms = user.optJSONObject("permissions") ?: JSONObject()
-        val catalog = root.optJSONArray("modules") ?: JSONArray()
         return CoreState(
             cookie = cookie,
             csrf = csrf,
@@ -99,9 +94,10 @@ object OkulumCoreApi {
             roleKey = user.optString("role_key").ifBlank { "user" },
             roleName = user.optString("role_name").ifBlank { roleLabel(user.optString("role_key")) },
             legacy = user.optBoolean("legacy", false),
-            licenseModules = modules,
-            permissions = perms,
-            catalog = catalog,
+            licenseModules = license.optJSONObject("modules") ?: JSONObject(),
+            permissions = user.optJSONObject("permissions") ?: JSONObject(),
+            catalog = root.optJSONArray("modules") ?: JSONArray(),
+            announcements = root.optJSONArray("announcements") ?: JSONArray(),
             summary = root.optJSONObject("summary") ?: JSONObject(),
             settings = root.optJSONObject("settings") ?: JSONObject()
         )
