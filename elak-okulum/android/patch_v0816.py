@@ -4,6 +4,7 @@ import re
 ROOT = Path(__file__).resolve().parent
 activity = ROOT / "app/src/main/java/com/elak/okulum/izin/IzinActivityModern.kt"
 api = ROOT / "app/src/main/java/com/elak/okulum/izin/IzinApi.kt"
+home = ROOT / "app/src/main/java/com/elak/okulum/ElakHomeActivity.kt"
 
 s = activity.read_text(encoding="utf-8")
 
@@ -92,6 +93,7 @@ new_block = r'''    private var selectedStudent: JSONObject? = null
                                     try {
                                         val synced=IzinApi.syncStudentFromDirectory(session,student)
                                         runOnUiThread {
+                                            selectedStudent=synced
                                             pendingDirectoryStudent=synced
                                             showNewPermission()
                                         }
@@ -147,7 +149,13 @@ end=s.find('\n    private fun ',start+10)
 if end<0:end=len(s)
 sub=s[start:end]
 
-if re.search(r'selectedStudent\s*=\s*null',sub):
+# Eski UI tabanında showNewPermission içinde yerel selectedStudent tanımı bulunuyor.
+# Bu yerel değişken, Öğrenciler ekranından gelen seçimi gölgeliyordu. Yerel tanımı
+# kaldırıp sınıf düzeyindeki ortak seçimi kullanıyoruz.
+local_decl = re.compile(r'\bvar\s+selectedStudent\s*:\s*JSONObject\?\s*=\s*null\s*;?')
+if local_decl.search(sub):
+    sub=local_decl.sub('selectedStudent = pendingDirectoryStudent; pendingDirectoryStudent = null',sub,count=1)
+elif re.search(r'selectedStudent\s*=\s*null',sub):
     sub=re.sub(r'selectedStudent\s*=\s*null','selectedStudent = pendingDirectoryStudent; pendingDirectoryStudent = null',sub,count=1)
 else:
     brace=sub.find('{')
@@ -163,13 +171,32 @@ prefill='''        selectedStudent?.let { chosen ->
 pos=sub.find(needle)
 if pos<0:
     raise SystemExit("showNewPermission showContent marker missing")
-sub=sub[:pos+len(needle)]+prefill+sub[pos+len(needle):]
+# Seçili öğrenci kartını ekran gösterilmeden önce doldur.
+sub=sub[:pos]+prefill+sub[pos:]
 s=s[:start]+sub+s[end:]
 
 activity.write_text(s, encoding="utf-8")
 
 a=api.read_text(encoding="utf-8")
-a=re.sub(r'private const val UA = "ELAK-Okulum/[0-9.]+ Android"','private const val UA = "ELAK-Okulum/0.9.3 Android"',a)
+a=re.sub(r'private const val UA = "ELAK-Okulum/[0-9.]+ Android"','private const val UA = "ELAK-Okulum/0.9.4 Android"',a)
 api.write_text(a, encoding="utf-8")
 
-print("v0.9.3 Rehber-first class/student permission flow applied")
+# Ana ekranda pasif modüller tamamen nötr gri/soluk görünür; modülün kendi rengi
+# pasif kartta hiç kullanılmaz. Emoji dahil bütün kartın opaklığı düşürülür.
+h=home.read_text(encoding="utf-8")
+h=h.replace(
+    'val enabled=core.moduleEnabled(m.key);val accent=if(enabled)m.color else muted\n        val bg=if(enabled)tintOnWhite(m.color,.075f) else tintOnWhite(m.color,.025f)',
+    'val enabled=core.moduleEnabled(m.key);val accent=if(enabled)m.color else Color.rgb(156,163,175)\n        val bg=if(enabled)tintOnWhite(m.color,.075f) else Color.rgb(246,247,249)'
+)
+h=h.replace(
+    'background=moduleBackground(bg,if(enabled)tint(m.color,.34f) else Color.rgb(190,199,211),!enabled);elevation=if(enabled)dp(2).toFloat() else 0f',
+    'background=moduleBackground(bg,if(enabled)tint(m.color,.34f) else Color.rgb(218,223,230),!enabled);elevation=if(enabled)dp(2).toFloat() else 0f;alpha=if(enabled)1f else .48f'
+)
+h=h.replace(
+    'background=rounded(if(enabled)tintOnWhite(m.color,.16f) else Color.rgb(232,236,241),11)',
+    'background=rounded(if(enabled)tintOnWhite(m.color,.16f) else Color.rgb(238,240,243),11)'
+)
+h=h.replace('stats.addView(mini("Sürüm","0.9.3",blue)', 'stats.addView(mini("Sürüm","0.9.4",blue)')
+home.write_text(h,encoding="utf-8")
+
+print("v0.9.4 student handoff + fully faded inactive modules patch applied")
