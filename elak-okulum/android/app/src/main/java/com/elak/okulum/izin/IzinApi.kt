@@ -75,8 +75,14 @@ object IzinApi {
 
     fun syncStudentContact(session:IzinSession,student:JSONObject):JSONObject=syncStudentFromDirectory(session,student)
 
+    /**
+     * notificationTargets anahtarları öğrenci ID'sidir.
+     * Her hedef {name, relationship, phone} içerir. Sunucu bu numarayı izin kaydına
+     * sabitler; çıkış SMS'i daha sonra yalnız bu numaraya gönderilir.
+     */
     fun createPermissions(
         session:IzinSession,studentIds:List<Long>,reason:String,receiver:String,approvalMethod:String,sameDayReturn:Boolean,note:String,
+        notificationTargets:JSONObject=JSONObject(),
         parentName:String="",parentPhone:String="",authorizedPerson:String=""
     ):JSONObject{
         val ids=studentIds.filter{it>0L}.distinct()
@@ -90,18 +96,26 @@ object IzinApi {
             .put("approval_method",approvalMethod)
             .put("same_day_return",if(sameDayReturn)1 else 0)
             .put("note",note)
+            .put("notification_targets",notificationTargets)
             .put("parent_name",parentName)
             .put("parent_phone",parentPhone)
             .put("authorized_person",authorizedPerson)
-        return requestJson(session,"permission_create",method="POST",body=body)
+        val action=if(ids.size>1)"permission_bulk_create" else "permission_create"
+        return requestJson(session,action,method="POST",body=body)
     }
 
     fun createPermission(
         session:IzinSession,studentId:Long,reason:String,receiver:String,approvalMethod:String,sameDayReturn:Boolean,note:String,
+        notificationName:String="",notificationPhone:String="",
         parentName:String="",parentPhone:String="",authorizedPerson:String=""
-    ):JSONObject=createPermissions(
-        session,listOf(studentId),reason,receiver,approvalMethod,sameDayReturn,note,parentName,parentPhone,authorizedPerson
-    )
+    ):JSONObject{
+        val target=JSONObject().put(studentId.toString(),JSONObject()
+            .put("name",notificationName)
+            .put("phone",notificationPhone))
+        return createPermissions(
+            session,listOf(studentId),reason,receiver,approvalMethod,sameDayReturn,note,target,parentName,parentPhone,authorizedPerson
+        )
+    }
 
     fun securityExit(session:IzinSession,permissionId:Long):JSONObject=requestJson(session,"security_exit",method="POST",body=JSONObject().put("id",permissionId))
     fun securityReturn(session:IzinSession,permissionId:Long):JSONObject=requestJson(session,"security_return",method="POST",body=JSONObject().put("id",permissionId))
