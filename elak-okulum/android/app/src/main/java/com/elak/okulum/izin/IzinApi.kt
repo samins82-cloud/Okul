@@ -10,7 +10,7 @@ import java.net.URLEncoder
 
 object IzinApi {
     private const val BASE = "https://www.mcoaihl.com/izin/"
-    private const val UA = "ELAK-Okulum/0.9.3 Android"
+    private const val UA = "ELAK-Okulum/0.9.6 Android"
 
     data class LoginResult(
         val cookie:String,val csrf:String,val role:String,val fullName:String,val username:String,
@@ -75,13 +75,33 @@ object IzinApi {
 
     fun syncStudentContact(session:IzinSession,student:JSONObject):JSONObject=syncStudentFromDirectory(session,student)
 
+    fun createPermissions(
+        session:IzinSession,studentIds:List<Long>,reason:String,receiver:String,approvalMethod:String,sameDayReturn:Boolean,note:String,
+        parentName:String="",parentPhone:String="",authorizedPerson:String=""
+    ):JSONObject{
+        val ids=studentIds.filter{it>0L}.distinct()
+        if(ids.isEmpty())throw IllegalArgumentException("En az bir öğrenci seçilmelidir.")
+        val arr=JSONArray();ids.forEach{arr.put(it)}
+        val body=JSONObject()
+            .put("student_ids",arr)
+            .put("student_id",ids.first())
+            .put("reason",reason)
+            .put("receiver",receiver)
+            .put("approval_method",approvalMethod)
+            .put("same_day_return",if(sameDayReturn)1 else 0)
+            .put("note",note)
+            .put("parent_name",parentName)
+            .put("parent_phone",parentPhone)
+            .put("authorized_person",authorizedPerson)
+        return requestJson(session,"permission_create",method="POST",body=body)
+    }
+
     fun createPermission(
         session:IzinSession,studentId:Long,reason:String,receiver:String,approvalMethod:String,sameDayReturn:Boolean,note:String,
         parentName:String="",parentPhone:String="",authorizedPerson:String=""
-    ):JSONObject=requestJson(session,"permission_create",method="POST",body=JSONObject()
-        .put("student_id",studentId).put("reason",reason).put("receiver",receiver).put("approval_method",approvalMethod)
-        .put("same_day_return",if(sameDayReturn)1 else 0).put("note",note).put("parent_name",parentName)
-        .put("parent_phone",parentPhone).put("authorized_person",authorizedPerson))
+    ):JSONObject=createPermissions(
+        session,listOf(studentId),reason,receiver,approvalMethod,sameDayReturn,note,parentName,parentPhone,authorizedPerson
+    )
 
     fun securityExit(session:IzinSession,permissionId:Long):JSONObject=requestJson(session,"security_exit",method="POST",body=JSONObject().put("id",permissionId))
     fun securityReturn(session:IzinSession,permissionId:Long):JSONObject=requestJson(session,"security_return",method="POST",body=JSONObject().put("id",permissionId))
