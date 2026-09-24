@@ -91,9 +91,7 @@ new_block = r'''    private var selectedStudent: JSONObject? = null
                                 thread {
                                     try {
                                         val synced=IzinApi.syncStudentFromDirectory(session,student)
-                                        runOnUiThread {
-                                            showNewPermission(synced)
-                                        }
+                                        runOnUiThread { showNewPermission(synced) }
                                     } catch(e:Exception) {
                                         runOnUiThread {
                                             filterInfo.text=(if(selectedClass.isBlank())"Arama" else selectedClass)+" • ${rows.size} öğrenci"
@@ -143,38 +141,146 @@ start=s.find('    private fun showNewPermission(preselected: JSONObject? = null)
 if start<0:
     raise SystemExit("showNewPermission start missing")
 end=s.find('\n    private fun ',start+10)
-if end<0:end=len(s)
-sub=s[start:end]
+if end<0:
+    raise SystemExit("showNewPermission end missing")
 
-sub=re.sub(r'\bvar\s+selectedStudent\s*:\s*JSONObject\?\s*=\s*null\s*;?', '', sub)
-sub=re.sub(r'(?<!var\s)selectedStudent\s*=\s*null\s*;?', '', sub)
+permission_method = r'''    private fun showNewPermission(preselected: JSONObject? = null) {
+        currentNav = "new"; selectNav(currentNav); titleText.text = "İzin Takip • Yeni İzin"
+        val page = pageColumn()
+        page.addView(hero("Yeni İzin", "Bir veya birden fazla öğrenci seçin; seçilen öğrenciler aynı izin bilgileriyle kaydedilir."))
 
-brace=sub.find('{')
-if brace<0:
-    raise SystemExit("showNewPermission brace missing")
-sub=sub[:brace+1]+'\n        selectedStudent = preselected'+sub[brace+1:]
+        val search = input("Öğrenci adı veya okul no")
+        val searchButton = primaryButton("ÖĞRENCİ ARA / EKLE", blue)
+        val results = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        val selectedBox = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        val reason = input("Örn. Hastane, ailevi neden")
+        val receiver = input("Teslim alan kişi veya veli adı")
+        val approval = modernSpinner(listOf("Veli onay şeklini seçin", "Telefon", "SMS", "WhatsApp", "Dilekçe", "Yüz Yüze"))
+        val sameDay = modernSpinner(listOf("Dönüş durumunu seçin", "Evet, aynı gün dönecek", "Hayır, dönüş yapmayacak"))
+        val note = input("Açıklama / not").apply { minLines = 3; gravity = Gravity.TOP }
+        val save = primaryButton("SEÇİLEN ÖĞRENCİLERE İZİN VER", green)
+        val selected = linkedMapOf<Long, JSONObject>()
 
-needle='        showContent(wrapScroll(page))\n'
-prefill='''        preselected?.let { chosen ->
-            selectedStudent = chosen
+        fun renderSelected() {
             selectedBox.removeAllViews()
-            selectedBox.addView(selectedStudentCard(chosen))
-            receiver.setText(chosen.optString("authorized_person").ifBlank { chosen.optString("parent_name") })
-            search.setText(chosen.optString("full_name"))
-            search.isEnabled = false
-            results.removeAllViews()
+            selectedBox.addView(formLabel("Seçilen Öğrenciler (${selected.size})"))
+            if(selected.isEmpty()) {
+                selectedBox.addView(emptyCard("👥", "Henüz öğrenci seçilmedi", "Yukarıdaki arama alanından öğrenci ekleyebilirsiniz."))
+                return
+            }
+            selected.values.forEach { s ->
+                val wrap = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+                wrap.addView(selectedStudentCard(s))
+                val remove = secondaryButton("SEÇİMDEN ÇIKAR", red)
+                remove.setOnClickListener {
+                    selected.remove(s.optLong("id"))
+                    renderSelected()
+                }
+                wrap.addView(remove, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(42)).apply { topMargin = dp(5); bottomMargin = dp(8) })
+                selectedBox.addView(wrap)
+            }
         }
-'''
-pos=sub.find(needle)
-if pos<0:
-    raise SystemExit("showNewPermission showContent marker missing")
-sub=sub[:pos]+prefill+sub[pos:]
-s=s[:start]+sub+s[end:]
 
+        fun addStudent(s: JSONObject) {
+            val id=s.optLong("id")
+            if(id<=0L) { toast("Öğrenci izin kaydına bağlanamadı."); return }
+            selected[id]=s
+            if(receiver.text.toString().trim().isBlank() && selected.size==1) {
+                receiver.setText(s.optString("authorized_person").ifBlank { s.optString("parent_name") })
+            }
+            renderSelected()
+        }
+
+        page.addView(formLabel("Öğrenci Arama / Çoklu Seçim")); page.addView(search); page.addView(space(8)); page.addView(searchButton)
+        page.addView(space(8)); page.addView(results); page.addView(space(8)); page.addView(selectedBox)
+        page.addView(space(12)); page.addView(formLabel("İzin Nedeni")); page.addView(reason)
+        page.addView(space(8)); page.addView(formLabel("Teslim Alan Kişi / Veli Adı")); page.addView(receiver)
+        page.addView(space(8)); page.addView(formLabel("Veli Onay Şekli")); page.addView(approval)
+        page.addView(space(8)); page.addView(formLabel("Dönüş Durumu")); page.addView(sameDay)
+        page.addView(space(8)); page.addView(formLabel("Açıklama / Not")); page.addView(note)
+        page.addView(space(14)); page.addView(save)
+
+        preselected?.let { addStudent(it) } ?: renderSelected()
+        showContent(wrapScroll(page))
+
+        searchButton.setOnClickListener {
+            val q=search.text.toString().trim()
+            if(q.isBlank()) { toast("Öğrenci adı veya okul numarası girin."); return@setOnClickListener }
+            results.removeAllViews(); results.addView(emptyText("Akıllı Rehber aranıyor…"))
+            thread {
+                try {
+                    ensureRehberData()
+                    val loc=java.util.Locale.forLanguageTag("tr-TR")
+                    val qq=q.lowercase(loc)
+                    val rows=rehberCache.listStudents()
+                        .filter { it.name.lowercase(loc).contains(qq) || it.schoolNo.lowercase(loc).contains(qq) }
+                        .take(40)
+                    runOnUiThread {
+                        results.removeAllViews()
+                        if(rows.isEmpty()) results.addView(emptyText("Öğrenci bulunamadı."))
+                        rows.forEach { r ->
+                            val base=JSONObject()
+                                .put("student_no",r.schoolNo)
+                                .put("full_name",r.name)
+                                .put("class_name",r.className)
+                                .put("student_phone",r.phone)
+                            val enriched=enrichStudent(base) ?: base
+                            val item=studentCard(enriched,true)
+                            item.setOnClickListener {
+                                thread {
+                                    try {
+                                        val synced=IzinApi.syncStudentFromDirectory(session,enriched)
+                                        runOnUiThread {
+                                            addStudent(synced)
+                                            results.removeAllViews()
+                                            search.setText("")
+                                            search.requestFocus()
+                                        }
+                                    } catch(e:Exception) {
+                                        runOnUiThread { toast(e.message ?: "Öğrenci eklenemedi.") }
+                                    }
+                                }
+                            }
+                            results.addView(item)
+                        }
+                    }
+                } catch(e:Exception) {
+                    runOnUiThread { results.removeAllViews(); results.addView(emptyText(e.message ?: "Arama yapılamadı.")) }
+                }
+            }
+        }
+
+        save.setOnClickListener {
+            if(selected.isEmpty()) { toast("En az bir öğrenci seçilmelidir."); return@setOnClickListener }
+            if(reason.text.toString().trim().isBlank()) { toast("İzin nedenini yazın."); return@setOnClickListener }
+            if(approval.selectedItemPosition==0) { toast("Veli onay şeklini seçin."); return@setOnClickListener }
+            if(sameDay.selectedItemPosition==0) { toast("Dönüş durumunu seçin."); return@setOnClickListener }
+            save.isEnabled=false
+            thread {
+                try {
+                    val r=IzinApi.createPermissions(
+                        session,
+                        selected.keys.toList(),
+                        reason.text.toString().trim(),
+                        receiver.text.toString().trim(),
+                        approval.selectedItem.toString(),
+                        sameDay.selectedItemPosition==1,
+                        note.text.toString().trim()
+                    )
+                    runOnUiThread { save.isEnabled=true; toast(r.optString("message","İzin oluşturuldu.")); showDashboard() }
+                } catch(e:Exception) {
+                    runOnUiThread { save.isEnabled=true; toast(e.message ?: "İzin oluşturulamadı.") }
+                }
+            }
+        }
+    }
+'''
+
+s=s[:start]+permission_method+s[end:]
 activity.write_text(s, encoding="utf-8")
 
 a=api.read_text(encoding="utf-8")
-a=re.sub(r'private const val UA = "ELAK-Okulum/[0-9.]+ Android"','private const val UA = "ELAK-Okulum/0.9.5 Android"',a)
+a=re.sub(r'private const val UA = "ELAK-Okulum/[0-9.]+ Android"','private const val UA = "ELAK-Okulum/0.9.6 Android"',a)
 api.write_text(a, encoding="utf-8")
 
 h=home.read_text(encoding="utf-8")
@@ -190,7 +296,7 @@ h=h.replace(
     'background=rounded(if(enabled)tintOnWhite(m.color,.16f) else Color.rgb(232,236,241),11)',
     'background=rounded(if(enabled)tintOnWhite(m.color,.16f) else Color.rgb(238,240,243),11)'
 )
-h=re.sub(r'stats\.addView\(mini\("Sürüm","[0-9.]+",blue\)', 'stats.addView(mini("Sürüm","0.9.5",blue)', h)
+h=re.sub(r'stats\.addView\(mini\("Sürüm","[0-9.]+",blue\)', 'stats.addView(mini("Sürüm","0.9.6",blue)', h)
 home.write_text(h,encoding="utf-8")
 
-print("v0.9.5 direct student-to-permission handoff patch applied")
+print("v0.9.6 multi-student permission flow + labeled form patch applied")
