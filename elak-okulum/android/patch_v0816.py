@@ -147,7 +147,7 @@ if end<0:
 permission_method = r'''    private fun showNewPermission(preselected: JSONObject? = null) {
         currentNav = "new"; selectNav(currentNav); titleText.text = "İzin Takip • Yeni İzin"
         val page = pageColumn()
-        page.addView(hero("Yeni İzin", "Bir veya birden fazla öğrenci seçin; seçilen öğrenciler aynı izin bilgileriyle kaydedilir."))
+        page.addView(hero("Yeni İzin", "Öğrenciyi seçin ve her öğrenci için SMS gönderilecek tek numarayı belirleyin."))
 
         val search = input("Öğrenci adı veya okul no")
         val searchButton = primaryButton("ÖĞRENCİ ARA / EKLE", blue)
@@ -160,6 +160,52 @@ permission_method = r'''    private fun showNewPermission(preselected: JSONObjec
         val note = input("Açıklama / not").apply { minLines = 3; gravity = Gravity.TOP }
         val save = primaryButton("SEÇİLEN ÖĞRENCİLERE İZİN VER", green)
         val selected = linkedMapOf<Long, JSONObject>()
+        val notificationTargets = linkedMapOf<Long, JSONObject>()
+
+        fun phoneKey(value:String):String {
+            val d=value.filter{it.isDigit()}
+            return if(d.length>=10)d.takeLast(10) else d
+        }
+
+        fun contactsOf(s:JSONObject):List<JSONObject> {
+            val out=ArrayList<JSONObject>()
+            val seen=linkedSetOf<String>()
+            val arr=s.optJSONArray("rehber_contacts") ?: JSONArray()
+            for(i in 0 until arr.length()) {
+                val c=arr.optJSONObject(i) ?: continue
+                val phone=c.optString("phone").trim()
+                val key=phoneKey(phone)
+                if(phone.isBlank() || key.isBlank() || !seen.add(key))continue
+                out.add(JSONObject()
+                    .put("name",c.optString("name"))
+                    .put("relationship",c.optString("relationship").ifBlank{"İletişim"})
+                    .put("phone",phone))
+            }
+            val parentPhone=s.optString("parent_phone").trim()
+            val pk=phoneKey(parentPhone)
+            if(parentPhone.isNotBlank() && pk.isNotBlank() && seen.add(pk)) {
+                out.add(JSONObject()
+                    .put("name",s.optString("parent_name"))
+                    .put("relationship","Veli")
+                    .put("phone",parentPhone))
+            }
+            return out
+        }
+
+        fun defaultTarget(s:JSONObject):JSONObject {
+            val contacts=contactsOf(s)
+            val preferred=phoneKey(s.optString("parent_phone"))
+            return contacts.firstOrNull{phoneKey(it.optString("phone"))==preferred}
+                ?: contacts.firstOrNull()
+                ?: JSONObject().put("name",s.optString("parent_name")).put("relationship","Veli").put("phone","")
+        }
+
+        fun targetLabel(c:JSONObject):String {
+            val relation=c.optString("relationship").ifBlank{"İletişim"}
+            val name=c.optString("name").trim()
+            val phone=c.optString("phone").trim()
+            return listOf(relation,name,phone).filter{it.isNotBlank()}.joinToString(" • ")
+        }
 
         fun renderSelected() {
             selectedBox.removeAllViews()
@@ -169,15 +215,50 @@ permission_method = r'''    private fun showNewPermission(preselected: JSONObjec
                 return
             }
             selected.values.forEach { s ->
-                val wrap = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+                val studentId=s.optLong("id")
+                val wrap = LinearLayout(this).apply {
+                    orientation = LinearLayout.VERTICAL
+                    setPadding(dp(10),dp(9),dp(10),dp(9))
+                    background=rounded(Color.WHITE,14)
+                }
                 wrap.addView(selectedStudentCard(s))
+                wrap.addView(formLabel("SMS Gönderilecek Numara"))
+
+                val contacts=contactsOf(s)
+                if(contacts.isEmpty()) {
+                    notificationTargets[studentId]=JSONObject().put("name","").put("relationship","").put("phone","")
+                    wrap.addView(TextView(this).apply {
+                        text="Bu öğrenci için kayıtlı telefon bulunamadı. Çıkış SMS'i gönderilmeyecek."
+                        textSize=11.5f;setTextColor(red);setPadding(dp(10),dp(8),dp(10),dp(8));background=rounded(Color.rgb(254,242,242),10)
+                    })
+                } else {
+                    val labels=contacts.map{targetLabel(it)}
+                    val picker=modernSpinner(labels)
+                    val current=notificationTargets[studentId] ?: defaultTarget(s).also{notificationTargets[studentId]=it}
+                    val currentKey=phoneKey(current.optString("phone"))
+                    val selectedIndex=contacts.indexOfFirst{phoneKey(it.optString("phone"))==currentKey}.let{if(it<0)0 else it}
+                    picker.setSelection(selectedIndex,false)
+                    picker.onItemSelectedListener=object:AdapterView.OnItemSelectedListener{
+                        override fun onItemSelected(parent:AdapterView<*>?,view:View?,position:Int,id:Long){
+                            contacts.getOrNull(position)?.let{notificationTargets[studentId]=JSONObject(it.toString())}
+                        }
+                        override fun onNothingSelected(parent:AdapterView<*>?){ }
+                    }
+                    wrap.addView(picker)
+                    wrap.addView(TextView(this).apply {
+                        text="Çıkış verildiğinde SMS yalnız burada seçtiğiniz numaraya gönderilir."
+                        textSize=10.5f;setTextColor(green);setPadding(dp(4),dp(5),dp(4),0)
+                    })
+                }
+
                 val remove = secondaryButton("SEÇİMDEN ÇIKAR", red)
                 remove.setOnClickListener {
-                    selected.remove(s.optLong("id"))
+                    selected.remove(studentId)
+                    notificationTargets.remove(studentId)
                     renderSelected()
                 }
-                wrap.addView(remove, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(42)).apply { topMargin = dp(5); bottomMargin = dp(8) })
-                selectedBox.addView(wrap)
+                wrap.addView(remove, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(42)).apply { topMargin = dp(8) })
+                selectedBox.addView(wrap,LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,ViewGroup.LayoutParams.WRAP_CONTENT).apply{bottomMargin=dp(9)})
             }
         }
 
@@ -185,6 +266,7 @@ permission_method = r'''    private fun showNewPermission(preselected: JSONObjec
             val id=s.optLong("id")
             if(id<=0L) { toast("Öğrenci izin kaydına bağlanamadı."); return }
             selected[id]=s
+            if(!notificationTargets.containsKey(id))notificationTargets[id]=defaultTarget(s)
             if(receiver.text.toString().trim().isBlank() && selected.size==1) {
                 receiver.setText(s.optString("authorized_person").ifBlank { s.optString("parent_name") })
             }
@@ -255,6 +337,13 @@ permission_method = r'''    private fun showNewPermission(preselected: JSONObjec
             if(reason.text.toString().trim().isBlank()) { toast("İzin nedenini yazın."); return@setOnClickListener }
             if(approval.selectedItemPosition==0) { toast("Veli onay şeklini seçin."); return@setOnClickListener }
             if(sameDay.selectedItemPosition==0) { toast("Dönüş durumunu seçin."); return@setOnClickListener }
+
+            val targets=JSONObject()
+            selected.keys.forEach { studentId ->
+                val t=notificationTargets[studentId] ?: JSONObject().put("name","").put("relationship","").put("phone","")
+                targets.put(studentId.toString(),JSONObject(t.toString()))
+            }
+
             save.isEnabled=false
             thread {
                 try {
@@ -265,7 +354,8 @@ permission_method = r'''    private fun showNewPermission(preselected: JSONObjec
                         receiver.text.toString().trim(),
                         approval.selectedItem.toString(),
                         sameDay.selectedItemPosition==1,
-                        note.text.toString().trim()
+                        note.text.toString().trim(),
+                        targets
                     )
                     runOnUiThread { save.isEnabled=true; toast(r.optString("message","İzin oluşturuldu.")); showDashboard() }
                 } catch(e:Exception) {
@@ -299,4 +389,4 @@ h=h.replace(
 h=re.sub(r'stats\.addView\(mini\("Sürüm","[0-9.]+",blue\)', 'stats.addView(mini("Sürüm","0.9.6",blue)', h)
 home.write_text(h,encoding="utf-8")
 
-print("v0.9.6 multi-student permission flow + labeled form patch applied")
+print("v0.9.6 selected SMS target + multi-student permission patch applied")
