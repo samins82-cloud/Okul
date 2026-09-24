@@ -146,7 +146,6 @@ end=s.find('\n    private fun ',start+10)
 if end<0:end=len(s)
 sub=s[start:end]
 
-# Eski UI tabanının yerel veya sınıf düzeyi öğrenci sıfırlama satırlarını kaldır.
 sub=re.sub(r'\bvar\s+selectedStudent\s*:\s*JSONObject\?\s*=\s*null\s*;?', '', sub)
 sub=re.sub(r'(?<!var\s)selectedStudent\s*=\s*null\s*;?', '', sub)
 
@@ -155,7 +154,6 @@ if brace<0:
     raise SystemExit("showNewPermission brace missing")
 sub=sub[:brace+1]+'\n        selectedStudent = preselected'+sub[brace+1:]
 
-# Seçili öğrenci varsa ekran gösterilmeden önce kartını ve teslim kişisini doldur.
 needle='        showContent(wrapScroll(page))\n'
 prefill='''        preselected?.let { chosen ->
             selectedStudent = chosen
@@ -164,7 +162,6 @@ prefill='''        preselected?.let { chosen ->
             receiver.setText(chosen.optString("authorized_person").ifBlank { chosen.optString("parent_name") })
             search.setText(chosen.optString("full_name"))
             search.isEnabled = false
-            searchButton.visibility = View.GONE
             results.removeAllViews()
         }
 '''
@@ -180,7 +177,6 @@ a=api.read_text(encoding="utf-8")
 a=re.sub(r'private const val UA = "ELAK-Okulum/[0-9.]+ Android"','private const val UA = "ELAK-Okulum/0.9.5 Android"',a)
 api.write_text(a, encoding="utf-8")
 
-# Pasif kartlar tamamen nötr ve soluk görünür.
 h=home.read_text(encoding="utf-8")
 h=h.replace(
     'val enabled=core.moduleEnabled(m.key);val accent=if(enabled)m.color else muted\n        val bg=if(enabled)tintOnWhite(m.color,.075f) else tintOnWhite(m.color,.025f)',
