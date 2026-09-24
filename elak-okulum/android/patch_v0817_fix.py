@@ -5,7 +5,7 @@ activity=ROOT/'app/src/main/java/com/elak/okulum/izin/IzinActivityModern.kt'
 s=activity.read_text(encoding='utf-8')
 
 old='val c=CheckBox(this).apply{text=label;isChecked=true;textSize=12f;setTextColor(text)}'
-new='val c=CheckBox(this).apply{text=label;isChecked=true;textSize=12f;setTextColor(this@IzinActivityModern.text)}'
+new='val c=CheckBox(this).apply{text=label;isChecked=true;textSize=12f;setTextColor(Color.rgb(15,34,62))}'
 if old not in s:
     raise SystemExit('lunch checkbox marker missing')
 s=s.replace(old,new,1)
