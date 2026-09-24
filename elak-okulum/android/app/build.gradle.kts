@@ -1,13 +1,4 @@
-import java.util.Base64
-
 plugins { id("com.android.application"); id("org.jetbrains.kotlin.android") }
-
-val testKeystore = rootProject.file("test-signing/elak-test.jks")
-val testKeystoreB64 = rootProject.file("test-signing/elak-test.jks.b64")
-if (!testKeystore.exists() && testKeystoreB64.exists()) {
-    testKeystore.parentFile.mkdirs()
-    testKeystore.writeBytes(Base64.getMimeDecoder().decode(testKeystoreB64.readText().trim()))
-}
 
 android {
     namespace = "com.elak.okulum"
@@ -17,18 +8,9 @@ android {
         applicationId = "com.elak.okulum"
         minSdk = 24
         targetSdk = 35
-        versionCode = 42
-        versionName = "0.9.6"
+        versionCode = 43
+        versionName = "0.9.7"
         manifestPlaceholders["appLabel"] = "ELAK Okulum"
-    }
-
-    signingConfigs {
-        create("test") {
-            storeFile = testKeystore
-            storePassword = "elaktest2026"
-            keyAlias = "elaktest"
-            keyPassword = "elaktest2026"
-        }
     }
 
     buildTypes {
@@ -36,7 +18,6 @@ android {
             applicationIdSuffix = ".test"
             versionNameSuffix = "-test"
             manifestPlaceholders["appLabel"] = "ELAK Okulum Test"
-            signingConfig = signingConfigs.getByName("test")
         }
     }
 
