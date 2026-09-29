@@ -1,5 +1,6 @@
 package com.elak.okulum.rehber
 
+import android.os.Build
 import android.telecom.Call
 import android.telecom.CallScreeningService
 
@@ -13,6 +14,9 @@ class CallerIdService : CallScreeningService() {
             .setSkipNotification(false)
             .build()
         respondToCall(callDetails, response)
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q &&
+            callDetails.callDirection != Call.Details.DIRECTION_INCOMING) return
 
         val phone = callDetails.handle?.schemeSpecificPart.orEmpty()
         if (phone.isBlank()) return
