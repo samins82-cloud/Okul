@@ -230,6 +230,87 @@ render_new = r'''    private fun render() {
         setContentView(scroll)
     }
 
+    private fun renderStaffCaller(type: String) {
+        val name = intent.getStringExtra("guardian").orEmpty().ifBlank {
+            if (type == "teacher") "Öğretmen" else "Personel"
+        }
+        val roleTitle = intent.getStringExtra("role_title").orEmpty()
+
+        val root = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(16), dp(16), dp(16), dp(16))
+            setBackgroundColor(navy)
+        }
+
+        val head = TextView(this).apply {
+            text = if (type == "teacher") "ÖĞRETMEN ARIYOR" else "PERSONEL ARIYOR"
+            textSize = 12f
+            setTypeface(typeface, Typeface.BOLD)
+            setTextColor(Color.rgb(196, 217, 238))
+        }
+        root.addView(head)
+
+        val card = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(15), dp(14), dp(15), dp(14))
+            background = rounded(Color.WHITE, dp(18).toFloat())
+        }
+        card.addView(TextView(this).apply {
+            text = name
+            textSize = 21f
+            setTypeface(typeface, Typeface.BOLD)
+            setTextColor(ink)
+        })
+        card.addView(TextView(this).apply {
+            text = (if (type == "teacher") "Branş" else "Görev") + " · " + roleTitle.ifBlank { "Belirtilmemiş" }
+            textSize = 11.5f
+            setTextColor(if (type == "teacher") blue else orange)
+            setTypeface(typeface, Typeface.BOLD)
+            setPadding(0, dp(3), 0, dp(4))
+        })
+        card.addView(TextView(this).apply {
+            text = displayInternational(incomingPhone)
+            textSize = 15.5f
+            setTextColor(ink)
+            setPadding(0, dp(4), 0, dp(10))
+        })
+        card.addView(TextView(this).apply {
+            text = "WhatsApp'tan Yaz"
+            textSize = 12.3f
+            gravity = Gravity.CENTER
+            setTypeface(typeface, Typeface.BOLD)
+            setTextColor(Color.WHITE)
+            background = rounded(green, dp(12).toFloat())
+            setOnClickListener {
+                val n = PhoneUtil.international(incomingPhone)
+                if (n.isNotBlank()) try {
+                    startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://wa.me/$n")))
+                } catch (_: Exception) { }
+            }
+        }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(42)))
+
+        root.addView(card, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+            topMargin = dp(12)
+        })
+
+        root.addView(TextView(this).apply {
+            text = "KAPAT"
+            textSize = 12f
+            gravity = Gravity.CENTER
+            setTypeface(typeface, Typeface.BOLD)
+            setTextColor(Color.WHITE)
+            background = rounded(Color.rgb(100, 116, 139), dp(13).toFloat())
+            setOnClickListener {
+                CallerCardNotifier.dismiss(this@IncomingCallerActivity)
+                finish()
+            }
+        }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(46)).apply {
+            topMargin = dp(10)
+        })
+
+        setContentView(root)
+    }
+
     private fun studentMatchRow'''
 s, n = render_pat.subn(lambda _m: render_new, s, count=1)
 if n != 1:
