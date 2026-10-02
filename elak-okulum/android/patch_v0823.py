@@ -43,7 +43,7 @@ home_new = '''    private fun buildHome(): View {
     }
 
     private fun tile('''
-r, n = home_pat.subn(home_new, r, count=1)
+r, n = home_pat.subn(lambda _m: home_new, r, count=1)
 if n != 1:
     raise SystemExit('buildHome marker missing')
 
@@ -133,7 +133,7 @@ status_new = '''    private fun statusStrip(): View {
     }
 
     private fun showStaffDirectory'''
-r, n = status_pat.subn(status_new, r, count=1)
+r, n = status_pat.subn(lambda _m: status_new, r, count=1)
 if n != 1:
     raise SystemExit('statusStrip/showStaffDirectory marker missing')
 
