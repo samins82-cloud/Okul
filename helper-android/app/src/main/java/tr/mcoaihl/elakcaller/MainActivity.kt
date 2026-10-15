@@ -10,6 +10,7 @@ import android.graphics.Color
 import android.graphics.drawable.GradientDrawable
 import android.net.Uri
 import android.os.Bundle
+import android.provider.Settings
 import android.view.Gravity
 import android.view.View
 import android.widget.*
@@ -44,10 +45,11 @@ class MainActivity : Activity() {
         connectionBadge = TextView(this).apply { text="BAĞLI DEĞİL"; textSize=13f; gravity=Gravity.CENTER; setTextColor(Color.WHITE); setTypeface(typeface,android.graphics.Typeface.BOLD); setPadding(18,13,18,13); background=rounded(Color.rgb(131,145,159)) }
         status = TextView(this).apply { textSize=14f; setPadding(22,18,22,18); background=rounded(Color.WHITE,22f); setTextColor(Color.rgb(42,69,95)) }
         val perm = Button(this).apply { text="Arayan Kimliği Yetkisini Aç"; setOnClickListener { requestCallScreeningRole() } }
+        val overlay = Button(this).apply { text="Ekranın Üzerinde Gösterme İznini Aç"; setOnClickListener { requestOverlayPermission() } }
         codeInput = EditText(this).apply { hint="8 haneli eşleştirme kodu"; isSingleLine=true; setPadding(22,18,22,18) }
         pairButton = Button(this).apply { text="Bu Telefonu Eşleştir"; setOnClickListener { claim(codeInput.text.toString(), prefs.getString("base_url","https://elak.mcoaihl.com/rehber/") ?: "https://elak.mcoaihl.com/rehber/") } }
         val openPwa = Button(this).apply { text="Akıllı Rehberi Aç"; setOnClickListener { startActivity(Intent(Intent.ACTION_VIEW,Uri.parse("https://elak.mcoaihl.com/rehber/"))) } }
-        listOf(title,desc,connectionBadge,status,perm,codeInput,pairButton,openPwa).forEach { root.addView(it,LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT,LinearLayout.LayoutParams.WRAP_CONTENT).apply { bottomMargin=14 }) }
+        listOf(title,desc,connectionBadge,status,perm,overlay,codeInput,pairButton,openPwa).forEach { root.addView(it,LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT,LinearLayout.LayoutParams.WRAP_CONTENT).apply { bottomMargin=14 }) }
         return ScrollView(this).apply { addView(root) }
     }
 
@@ -73,15 +75,16 @@ class MainActivity : Activity() {
     }
 
     private fun refreshStatus(){
-        val token=prefs.getString("token","").orEmpty();val rm=getSystemService(RoleManager::class.java);val roleOk=rm.isRoleAvailable(RoleManager.ROLE_CALL_SCREENING)&&rm.isRoleHeld(RoleManager.ROLE_CALL_SCREENING)
-        if(token.isBlank()){setBadge(false);status.text="1) Akıllı Rehber PWA'dan eşleştirme kodu oluşturun.\n2) Kodu bu uygulamaya aktarın.\n3) Arayan kimliği yetkisini açın.";return}
-        setBadge(true,"BAĞLI");status.text=if(roleOk)"Bağlantı doğrulanıyor… Arayan tanıma yetkisi açık." else "Bağlantı doğrulanıyor… Arayan tanıma yetkisini açın."
-        checkServerStatus(token,roleOk)
+        val token=prefs.getString("token","").orEmpty();val rm=getSystemService(RoleManager::class.java);val roleOk=rm.isRoleAvailable(RoleManager.ROLE_CALL_SCREENING)&&rm.isRoleHeld(RoleManager.ROLE_CALL_SCREENING);val overlayOk=Settings.canDrawOverlays(this)
+        if(token.isBlank()){setBadge(false);status.text="1) Akıllı Rehber PWA'dan eşleştirme kodu oluşturun.\n2) Kodu bu uygulamaya aktarın.\n3) Arayan kimliği ve ekran üstü gösterim yetkilerini açın.";return}
+        setBadge(true,"BAĞLI");status.text="Bağlantı doğrulanıyor…\nArayan kimliği: ${if(roleOk)"Açık" else "Kapalı"} · Ekran üstü: ${if(overlayOk)"Açık" else "Kapalı"}"
+        checkServerStatus(token,roleOk,overlayOk)
     }
 
-    private fun checkServerStatus(token:String,roleOk:Boolean){thread{try{val base=prefs.getString("base_url","https://elak.mcoaihl.com/rehber/")?:"https://elak.mcoaihl.com/rehber/";val url=URL((if(base.endsWith("/"))base else "$base/")+"api.php?action=native_status");val c=(url.openConnection() as HttpURLConnection).apply{requestMethod="GET";connectTimeout=2500;readTimeout=2500;setRequestProperty("Authorization","Bearer $token")};if(c.responseCode !in 200..299)throw Exception("Bağlantı kaldırılmış");val j=JSONObject(c.inputStream.bufferedReader().use{it.readText()});val org=j.optString("org_name","ELAK Kurumu");runOnUiThread{setBadge(true,"BAĞLI");status.text=if(roleOk)"✓ $org\nArayan tanıma aktif." else "✓ $org\nTelefon bağlı; Arayan Kimliği yetkisini açın."}}catch(e:Exception){prefs.edit().remove("token").apply();runOnUiThread{setBadge(false,"BAĞLANTI YOK");status.text="Sunucu bağlantısı doğrulanamadı veya cihaz bağlantısı kaldırıldı. Yeniden eşleştirin."}}}}
+    private fun checkServerStatus(token:String,roleOk:Boolean,overlayOk:Boolean){thread{try{val base=prefs.getString("base_url","https://elak.mcoaihl.com/rehber/")?:"https://elak.mcoaihl.com/rehber/";val url=URL((if(base.endsWith("/"))base else "$base/")+"api.php?action=native_status");val c=(url.openConnection() as HttpURLConnection).apply{requestMethod="GET";connectTimeout=2500;readTimeout=2500;setRequestProperty("Authorization","Bearer $token")};if(c.responseCode !in 200..299)throw Exception("Bağlantı kaldırılmış");val j=JSONObject(c.inputStream.bufferedReader().use{it.readText()});val org=j.optString("org_name","ELAK Kurumu");runOnUiThread{setBadge(true,"BAĞLI");status.text="✓ $org\nArayan kimliği: ${if(roleOk)"Açık" else "Kapalı"} · Ekran üstü: ${if(overlayOk)"Açık" else "Kapalı"}${if(roleOk&&overlayOk)"\nArayan bilgisi tüm uygulamaların üzerinde gösterilecek." else "\nEksik yetkiyi açın."}"}}catch(e:Exception){prefs.edit().remove("token").apply();runOnUiThread{setBadge(false,"BAĞLANTI YOK");status.text="Sunucu bağlantısı doğrulanamadı veya cihaz bağlantısı kaldırıldı. Yeniden eşleştirin."}}}}
 
     private fun requestNeededPermissions(){if(android.os.Build.VERSION.SDK_INT>=33&&checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)!=PackageManager.PERMISSION_GRANTED)requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS),3002)}
     private fun requestCallScreeningRole(){val rm=getSystemService(RoleManager::class.java);if(rm.isRoleAvailable(RoleManager.ROLE_CALL_SCREENING)&&!rm.isRoleHeld(RoleManager.ROLE_CALL_SCREENING))startActivityForResult(rm.createRequestRoleIntent(RoleManager.ROLE_CALL_SCREENING),3001) else refreshStatus()}
+    private fun requestOverlayPermission(){if(!Settings.canDrawOverlays(this)){startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,Uri.parse("package:$packageName")))}else Toast.makeText(this,"Ekran üstü gösterim izni zaten açık.",Toast.LENGTH_SHORT).show()}
     override fun onResume(){super.onResume();if(::status.isInitialized)refreshStatus()}
 }
