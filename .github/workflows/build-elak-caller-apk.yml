@@ -26,6 +26,12 @@ jobs:
           distribution: temurin
           java-version: '17'
 
+      - name: Preserve caller debug signing key
+        uses: actions/cache@v4
+        with:
+          path: ~/.android/debug.keystore
+          key: elak-caller-debug-signing-v122
+
       - name: Accept Android licenses
         run: yes | ${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager --licenses >/dev/null || true
 
@@ -36,6 +42,10 @@ jobs:
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.9'
+
+      - name: Apply v1.2.2 version patch
+        working-directory: helper-android
+        run: python3 patch_v122.py
 
       - name: Build installable APK
         working-directory: helper-android
@@ -50,17 +60,19 @@ jobs:
           printf '%s  %s\n' "$SHA" 'ELAK-Arayan-Tanima.apk' > out/SHA256.txt
           cat > out/ELAK-Arayan-Tanima.json <<EOF
           {
-            "version": "1.2.1",
-            "version_code": 5,
+            "version": "1.2.2",
+            "version_code": 6,
+            "published_at": "2026-10-17",
+            "apk_url": "https://elak.mcoaihl.com/rehber/downloads/ELAK-Arayan-Tanima.apk",
             "sha256": "$SHA",
             "size": $BYTES,
-            "notes": "Aynı veliye bağlı birden fazla öğrenci için iki öğrenci fotoğrafını yan yana gösteren gelen arama kartı"
+            "notes": "Otomatik güncelleme kontrolü, SHA-256 bütünlük doğrulaması ve Android kurulum ekranına güvenli geçiş eklendi."
           }
           EOF
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ELAK-Arayan-Tanima-v1.2.1
+          name: ELAK-Arayan-Tanima-v1.2.2
           path: out/
           retention-days: 30
