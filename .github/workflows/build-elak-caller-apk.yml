@@ -26,11 +26,28 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Preserve caller debug signing key
+      - name: Preserve caller signing key
         uses: actions/cache@v4
         with:
-          path: ~/.android/debug.keystore
-          key: elak-caller-debug-signing-v122
+          path: .ci-signing/debug.keystore
+          key: elak-caller-debug-signing-v122-fixed1
+
+      - name: Prepare stable debug signing key
+        run: |
+          mkdir -p .ci-signing "$HOME/.android"
+          if [ ! -f .ci-signing/debug.keystore ]; then
+            keytool -genkeypair \
+              -keystore .ci-signing/debug.keystore \
+              -storepass android \
+              -alias androiddebugkey \
+              -keypass android \
+              -keyalg RSA \
+              -keysize 2048 \
+              -validity 10000 \
+              -dname "CN=ELAK Caller Debug,O=ELAK Eğitim Teknolojileri,C=TR"
+          fi
+          cp .ci-signing/debug.keystore "$HOME/.android/debug.keystore"
+          chmod 600 "$HOME/.android/debug.keystore"
 
       - name: Accept Android licenses
         run: yes | ${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager --licenses >/dev/null || true
