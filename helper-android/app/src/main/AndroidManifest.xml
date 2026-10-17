@@ -23,7 +23,7 @@
         </activity>
 
         <service
-            android:name=".CallerIdService"
+            android:name=".CallerIdServiceV121"
             android:permission="android.permission.BIND_SCREENING_SERVICE"
             android:exported="true">
             <intent-filter>
