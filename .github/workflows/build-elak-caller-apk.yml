@@ -50,17 +50,17 @@ jobs:
           printf '%s  %s\n' "$SHA" 'ELAK-Arayan-Tanima.apk' > out/SHA256.txt
           cat > out/ELAK-Arayan-Tanima.json <<EOF
           {
-            "version": "1.2.0",
-            "version_code": 4,
+            "version": "1.2.1",
+            "version_code": 5,
             "sha256": "$SHA",
             "size": $BYTES,
-            "notes": "Gecikmesiz CallScreening yanıtı, öğrenci/sınıf/ilişki kartı, güvenli fotoğraf desteği ve bağlantı iyileştirmeleri"
+            "notes": "Aynı veliye bağlı birden fazla öğrenci için iki öğrenci fotoğrafını yan yana gösteren gelen arama kartı"
           }
           EOF
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ELAK-Arayan-Tanima-v1.2.0
+          name: ELAK-Arayan-Tanima-v1.2.1
           path: out/
           retention-days: 30
