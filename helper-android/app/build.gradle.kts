@@ -11,8 +11,8 @@ android {
         applicationId = "tr.mcoaihl.elakcaller"
         minSdk = 29
         targetSdk = 35
-        versionCode = 5
-        versionName = "1.2.1"
+        versionCode = 6
+        versionName = "1.2.2"
     }
 
     compileOptions {
@@ -33,4 +33,8 @@ android {
 
 kotlin {
     jvmToolchain(17)
+}
+
+dependencies {
+    implementation("androidx.core:core:1.15.0")
 }
