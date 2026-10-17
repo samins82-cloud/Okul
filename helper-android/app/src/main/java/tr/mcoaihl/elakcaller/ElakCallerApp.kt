@@ -16,6 +16,7 @@ class ElakCallerApp : Application(), Application.ActivityLifecycleCallbacks {
     override fun onActivityResumed(activity: Activity) {
         if (activity !is MainActivity) return
         refreshVisibleVersion(activity)
+        UpdatePanelV123.attach(activity)
         UpdateManager.resumePendingInstall(activity)
         UpdateManager.checkForUpdates(activity, silent = true)
     }
