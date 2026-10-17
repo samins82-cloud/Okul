@@ -29,25 +29,27 @@ jobs:
       - name: Preserve caller signing key
         uses: actions/cache@v4
         with:
-          path: .ci-signing/debug.keystore
-          key: elak-caller-debug-signing-v122-fixed1
+          path: helper-android/.ci-signing/debug.keystore
+          key: elak-caller-debug-signing-v122-fixed2
 
       - name: Prepare stable debug signing key
         run: |
-          mkdir -p .ci-signing "$HOME/.android"
-          if [ ! -f .ci-signing/debug.keystore ]; then
+          mkdir -p helper-android/.ci-signing
+          if [ ! -f helper-android/.ci-signing/debug.keystore ]; then
             keytool -genkeypair \
-              -keystore .ci-signing/debug.keystore \
+              -keystore helper-android/.ci-signing/debug.keystore \
               -storepass android \
               -alias androiddebugkey \
               -keypass android \
               -keyalg RSA \
               -keysize 2048 \
               -validity 10000 \
-              -dname "CN=ELAK Caller Debug,O=ELAK Eğitim Teknolojileri,C=TR"
+              -dname "CN=ELAK Caller Stable,O=ELAK Eğitim Teknolojileri,C=TR"
           fi
-          cp .ci-signing/debug.keystore "$HOME/.android/debug.keystore"
-          chmod 600 "$HOME/.android/debug.keystore"
+          keytool -list -v \
+            -keystore helper-android/.ci-signing/debug.keystore \
+            -storepass android \
+            -alias androiddebugkey | grep -E 'Owner:|SHA256:'
 
       - name: Accept Android licenses
         run: yes | ${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager --licenses >/dev/null || true
@@ -67,6 +69,10 @@ jobs:
       - name: Build installable APK
         working-directory: helper-android
         run: gradle --no-daemon clean assembleDebug --stacktrace
+
+      - name: Verify APK signing certificate
+        run: |
+          ${ANDROID_HOME}/build-tools/35.0.0/apksigner verify --print-certs helper-android/app/build/outputs/apk/debug/app-debug.apk
 
       - name: Prepare APK and metadata
         run: |
