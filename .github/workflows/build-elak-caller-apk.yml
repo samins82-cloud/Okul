@@ -6,6 +6,10 @@ on:
     paths:
       - 'helper-android/**'
       - '.github/workflows/build-elak-caller-apk.yml'
+  pull_request:
+    paths:
+      - 'helper-android/**'
+      - '.github/workflows/build-elak-caller-apk.yml'
   workflow_dispatch:
 
 permissions:
