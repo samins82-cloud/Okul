@@ -62,10 +62,6 @@ jobs:
         with:
           gradle-version: '8.9'
 
-      - name: Apply v1.2.3 version patch
-        working-directory: helper-android
-        run: python3 patch_v123.py
-
       - name: Build installable APK
         working-directory: helper-android
         run: gradle --no-daemon clean assembleDebug --stacktrace
@@ -83,19 +79,19 @@ jobs:
           printf '%s  %s\n' "$SHA" 'ELAK-Arayan-Tanima.apk' > out/SHA256.txt
           cat > out/ELAK-Arayan-Tanima.json <<EOF
           {
-            "version": "1.2.3",
-            "version_code": 7,
-            "published_at": "2026-10-17",
+            "version": "1.2.4",
+            "version_code": 8,
+            "published_at": "2026-10-19",
             "apk_url": "https://elak.mcoaihl.com/rehber/downloads/ELAK-Arayan-Tanima.apk",
             "sha256": "$SHA",
             "size": $BYTES,
-            "notes": "Uygulama simgesi eklendi. Ana ekrana görünür sürüm durumu ve Güncellemeyi Kontrol Et düğmesi eklendi; otomatik güncelleme ve SHA-256 doğrulaması korunuyor."
+            "notes": "Kayıtlı kişiler için izin akışı, arama tanılama, kısa ömürlü Android servisinden bağımsız arama kartı ve daha dayanıklı sunucu sorgusu düzeltildi."
           }
           EOF
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ELAK-Arayan-Tanima-v1.2.3
+          name: ELAK-Arayan-Tanima-v1.2.4
           path: out/
           retention-days: 30
