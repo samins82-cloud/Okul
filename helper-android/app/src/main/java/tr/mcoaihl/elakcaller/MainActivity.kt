@@ -32,6 +32,9 @@ class MainActivity : Activity() {
     private lateinit var roleState: TextView
     private lateinit var overlayState: TextView
     private lateinit var notificationState: TextView
+    private lateinit var contactsState: TextView
+    private lateinit var contactsButton: Button
+    private lateinit var callDiagnostics: TextView
     private lateinit var codeInput: EditText
     private lateinit var pairButton: Button
     private lateinit var roleButton: Button
@@ -142,7 +145,7 @@ class MainActivity : Activity() {
             setTypeface(typeface, Typeface.BOLD)
         }
         val version = TextView(this).apply {
-            text = "v1.2.0 · Android 10+"
+            text = "v${packageManager.getPackageInfo(packageName, 0).versionName} · Android 10+"
             textSize = 11f
             setTextColor(Color.rgb(105, 124, 143))
         }
@@ -186,6 +189,21 @@ class MainActivity : Activity() {
         connectionCard.addView(connectionTitle)
         connectionCard.addView(status)
 
+        val diagnosticCard = card()
+        val diagnosticTitle = TextView(this).apply {
+            text = "Son Gelen Arama Tanılaması"
+            textSize = 14f
+            setTextColor(Color.rgb(30, 62, 92))
+        }
+        callDiagnostics = TextView(this).apply {
+            textSize = 12f
+            setTextColor(Color.rgb(69, 91, 111))
+            setPadding(0, dp(8), 0, 0)
+            text = "Henüz Android arama olayı alınmadı."
+        }
+        diagnosticCard.addView(diagnosticTitle)
+        diagnosticCard.addView(callDiagnostics)
+
         val permissionCard = card()
         val permissionTitle = TextView(this).apply {
             text = "Gerekli Yetkiler"
@@ -202,7 +220,8 @@ class MainActivity : Activity() {
         roleState = stateChip("Arayan kimliği kontrol ediliyor")
         overlayState = stateChip("Ekran üstü kontrol ediliyor")
         notificationState = stateChip("Bildirim kontrol ediliyor")
-        listOf(roleState, overlayState, notificationState).forEach {
+        contactsState = stateChip("Telefon kişilerinin izni kontrol ediliyor")
+        listOf(roleState, overlayState, notificationState, contactsState).forEach {
             chips.addView(
                 it,
                 LinearLayout.LayoutParams(
@@ -233,6 +252,23 @@ class MainActivity : Activity() {
                 LinearLayout.LayoutParams.WRAP_CONTENT
             )
         )
+        contactsButton = actionButton("Kayıtlı Kişilerden Gelen Aramaları Etkinleştir").apply {
+            setOnClickListener { requestContactPermission() }
+        }
+        permissionCard.addView(
+            contactsButton,
+            LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply { topMargin = dp(6) }
+        )
+        permissionCard.addView(TextView(this).apply {
+            text = "Bu izin, Android'in telefona kayıtlı numaraların çağrılarını da ELAK'a bildirmesi içindir. " +
+                "Telefon kişileri sunucuya aktarılmaz; yalnız gelen numara yetkili KVM rehberinde sorgulanır."
+            textSize = 11f
+            setTextColor(Color.rgb(94, 114, 132))
+            setPadding(0, dp(6), 0, 0)
+        })
 
         val pairCard = card()
         val pairTitle = TextView(this).apply {
@@ -320,6 +356,7 @@ class MainActivity : Activity() {
             desc,
             connectionBadge,
             connectionCard,
+            diagnosticCard,
             permissionCard,
             pairCard,
             footerCard
@@ -330,7 +367,7 @@ class MainActivity : Activity() {
                     LinearLayout.LayoutParams.MATCH_PARENT,
                     LinearLayout.LayoutParams.WRAP_CONTENT
                 ).apply {
-                    bottomMargin = if (index == 6) 0 else dp(12)
+                    bottomMargin = if (index == 7) 0 else dp(12)
                 }
             )
         }
@@ -362,10 +399,17 @@ class MainActivity : Activity() {
             Build.VERSION.SDK_INT < 33 ||
                 checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) ==
                 PackageManager.PERMISSION_GRANTED
+        val contactsOk = checkSelfPermission(Manifest.permission.READ_CONTACTS) ==
+            PackageManager.PERMISSION_GRANTED
 
         applyState(roleState, "Arayan kimliği", roleOk)
         applyState(overlayState, "Ekran üstü gösterim", overlayOk)
         applyState(notificationState, "Bildirim", notificationOk)
+        applyState(contactsState, "Kayıtlı kişilerden aramalar", contactsOk)
+        contactsButton.text =
+            if (contactsOk) "Kayıtlı Kişiler İzni Açık ✓"
+            else "Kayıtlı Kişilerden Gelen Aramaları Etkinleştir"
+        contactsButton.isEnabled = !contactsOk
 
         roleButton.text =
             if (roleOk) "Arayan Kimliği Yetkisi Açık ✓"
@@ -429,7 +473,7 @@ class MainActivity : Activity() {
                         "device_name",
                         "${Build.MANUFACTURER} ${Build.MODEL}"
                     )
-                    .put("app_version", "1.2.0")
+                    .put("app_version", packageManager.getPackageInfo(packageName, 0).versionName ?: "1.2.4")
                     .toString()
 
                 val connection = (url.openConnection() as HttpURLConnection).apply {
@@ -440,7 +484,7 @@ class MainActivity : Activity() {
                     useCaches = false
                     setRequestProperty("Content-Type", "application/json")
                     setRequestProperty("Accept", "application/json")
-                    setRequestProperty("User-Agent", "ELAK-Caller/1.2.0")
+                    setRequestProperty("User-Agent", "ELAK-Caller/1.2.4")
                 }
 
                 try {
@@ -494,6 +538,7 @@ class MainActivity : Activity() {
 
     private fun refreshStatus() {
         updatePermissionUi()
+        refreshCallDiagnostics()
         val token = prefs.getString("token", "").orEmpty()
         disconnectButton.isEnabled = token.isNotBlank()
 
@@ -524,7 +569,7 @@ class MainActivity : Activity() {
                 useCaches = false
                 setRequestProperty("Authorization", "Bearer $token")
                 setRequestProperty("Accept", "application/json")
-                setRequestProperty("User-Agent", "ELAK-Caller/1.2.0")
+                setRequestProperty("User-Agent", "ELAK-Caller/1.2.4")
             }
 
             try {
@@ -595,7 +640,7 @@ class MainActivity : Activity() {
                 setRequestProperty("Authorization", "Bearer $token")
                 setRequestProperty("Content-Type", "application/json")
                 setRequestProperty("Accept", "application/json")
-                setRequestProperty("User-Agent", "ELAK-Caller/1.2.0")
+                setRequestProperty("User-Agent", "ELAK-Caller/1.2.4")
             }
 
             var serverRevoked = false
@@ -646,6 +691,40 @@ class MainActivity : Activity() {
                 arrayOf(Manifest.permission.POST_NOTIFICATIONS),
                 REQUEST_NOTIFICATIONS
             )
+        }
+    }
+
+    private fun refreshCallDiagnostics() {
+        val message = prefs.getString("last_call_result", "").orEmpty()
+        val at = prefs.getLong("last_call_at", 0L)
+        callDiagnostics.text = if (at == 0L || message.isBlank()) {
+            "Henüz Android arama olayı alınmadı. Gerçek GSM aramasıyla sınayın."
+        } else {
+            val stamp = java.text.DateFormat.getDateTimeInstance(
+                java.text.DateFormat.SHORT, java.text.DateFormat.MEDIUM
+            ).format(java.util.Date(at))
+            "$stamp\n$message"
+        }
+    }
+
+    private fun requestContactPermission() {
+        if (checkSelfPermission(Manifest.permission.READ_CONTACTS) !=
+            PackageManager.PERMISSION_GRANTED
+        ) {
+            requestPermissions(arrayOf(Manifest.permission.READ_CONTACTS), REQUEST_CONTACTS)
+        } else {
+            updatePermissionUi()
+        }
+    }
+
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<out String>,
+        grantResults: IntArray
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == REQUEST_CONTACTS || requestCode == REQUEST_NOTIFICATIONS) {
+            updatePermissionUi()
         }
     }
 
@@ -705,5 +784,6 @@ class MainActivity : Activity() {
             "https://elak.mcoaihl.com/rehber/"
         private const val REQUEST_CALL_SCREENING = 3001
         private const val REQUEST_NOTIFICATIONS = 3002
+        private const val REQUEST_CONTACTS = 3003
     }
 }

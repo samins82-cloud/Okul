@@ -56,23 +56,48 @@ class CallerIdServiceV121 : CallScreeningService() {
         } catch (_: Exception) {
         }
 
+        // Yalnız gelen GSM aramalarını sorgula; çağrı asla engellenmez.
+        if (callDetails.callDirection != Call.Details.DIRECTION_INCOMING) return
         val number = callDetails.handle?.schemeSpecificPart.orEmpty()
-        if (number.isBlank()) return
+        if (number.isBlank()) {
+            recordCallStatus("Arama algılandı; numara gizli")
+            return
+        }
+        recordCallStatus("Gelen arama algılandı; ELAK sorgulanıyor")
 
         thread(name = "elak-caller-lookup") {
             try {
                 val prefs = getSharedPreferences("elak_caller", Context.MODE_PRIVATE)
                 val token = prefs.getString("token", "").orEmpty()
                 val base = prefs.getString("base_url", BASE_URL).orEmpty().ifBlank { BASE_URL }
-                if (token.isBlank()) return@thread
-
-                val result = lookup(base, number, token) ?: return@thread
-                if (result.optJSONObject("best") != null) {
-                    showCaller(result, base, token)
+                if (token.isBlank()) {
+                    recordCallStatus("Cihaz eşleştirilmemiş")
+                    return@thread
                 }
-            } catch (_: Exception) {
+
+                val result = lookup(base, number, token)
+                if (result == null) {
+                    recordCallStatus("Sunucudan eşleştirme yanıtı alınamadı")
+                    return@thread
+                }
+                if (result.optJSONObject("best") != null) {
+                    recordCallStatus("Numara KVM ile eşleşti; kart hazırlanıyor")
+                    showCaller(result, base, token)
+                } else {
+                    recordCallStatus("Arama algılandı; bu numara yetkili rehberde bulunamadı")
+                }
+            } catch (e: Exception) {
+                // Kişisel telefon numarası ve token asla hata günlüğüne yazılmaz.
+                recordCallStatus("Arama sorgusunda hata: ${e.javaClass.simpleName}")
             }
         }
+    }
+
+    private fun recordCallStatus(message: String) {
+        getSharedPreferences("elak_caller", Context.MODE_PRIVATE).edit()
+            .putString("last_call_result", message)
+            .putLong("last_call_at", System.currentTimeMillis())
+            .apply()
     }
 
     private fun lookup(baseRaw: String, number: String, token: String): JSONObject? {
@@ -83,17 +108,20 @@ class CallerIdServiceV121 : CallScreeningService() {
         )
         val connection = (url.openConnection() as HttpURLConnection).apply {
             requestMethod = "GET"
-            connectTimeout = 1200
-            readTimeout = 1500
+            connectTimeout = 2500
+            readTimeout = 3500
             useCaches = false
             setRequestProperty("Accept", "application/json")
             setRequestProperty("Authorization", "Bearer $token")
-            setRequestProperty("User-Agent", "ELAK-Caller/1.2.1")
+            setRequestProperty("User-Agent", "ELAK-Caller/1.2.4")
         }
 
         return try {
             val code = connection.responseCode
-            if (code !in 200..299) return null
+            if (code !in 200..299) {
+                recordCallStatus("Sunucu isteği HTTP $code ile başarısız")
+                return null
+            }
             val text = connection.inputStream.bufferedReader().use { it.readText() }
             JSONObject(text)
         } finally {
@@ -106,6 +134,7 @@ class CallerIdServiceV121 : CallScreeningService() {
         if (Settings.canDrawOverlays(this)) {
             showOverlay(best, base, token)
         } else {
+            recordCallStatus("Numara eşleşti; ekran üstü izni kapalı, bildirim denendi")
             showNotification(best)
         }
     }
@@ -263,7 +292,7 @@ class CallerIdServiceV121 : CallScreeningService() {
             try {
                 removeOverlayNow()
 
-                val windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
+                val windowManager = applicationContext.getSystemService(WINDOW_SERVICE) as WindowManager
                 overlayWindow = windowManager
 
                 val card = LinearLayout(this).apply {
@@ -474,7 +503,11 @@ class CallerIdServiceV121 : CallScreeningService() {
 
                 overlayView = outer
                 windowManager.addView(outer, params)
-                mainHandler.postDelayed({ removeOverlay() }, 30000)
+                recordCallStatus("Arama kartı Android ekranında gösterildi")
+                // Önceki aramanın kapanma işi yeni aramanın kartını kapatmasın.
+                mainHandler.postDelayed({
+                    if (overlayView === outer) removeOverlayNow()
+                }, 30000)
 
                 photoSlots.forEachIndexed { index, slot ->
                     if (slot.studentId <= 0) return@forEachIndexed
@@ -491,7 +524,8 @@ class CallerIdServiceV121 : CallScreeningService() {
                         }
                     }
                 }
-            } catch (_: Exception) {
+            } catch (e: Exception) {
+                recordCallStatus("Ekran kartı açılamadı: ${e.javaClass.simpleName}; bildirim denendi")
                 showNotification(best)
             }
         }
@@ -513,7 +547,7 @@ class CallerIdServiceV121 : CallScreeningService() {
             useCaches = true
             setRequestProperty("Authorization", "Bearer $token")
             setRequestProperty("Accept", "image/*")
-            setRequestProperty("User-Agent", "ELAK-Caller/1.2.1")
+            setRequestProperty("User-Agent", "ELAK-Caller/1.2.4")
         }
 
         return try {
@@ -604,7 +638,8 @@ class CallerIdServiceV121 : CallScreeningService() {
     }
 
     override fun onDestroy() {
-        removeOverlay()
+        // CallScreeningService kısa ömürlüdür. Kartı burada kaldırırsak çağrı sırasında
+        // anlık görünüp kaybolabilir; 30 saniyelik kapatma görevine bırakılır.
         super.onDestroy()
     }
 
