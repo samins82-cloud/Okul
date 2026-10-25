@@ -83,19 +83,19 @@ jobs:
           printf '%s  %s\n' "$SHA" 'ELAK-Arayan-Tanima.apk' > out/SHA256.txt
           cat > out/ELAK-Arayan-Tanima.json <<EOF
           {
-            "version": "1.2.4",
-            "version_code": 8,
-            "published_at": "2026-10-19",
+            "version": "1.2.5",
+            "version_code": 9,
+            "published_at": "2026-10-25",
             "apk_url": "https://elak.mcoaihl.com/rehber/downloads/ELAK-Arayan-Tanima.apk",
             "sha256": "$SHA",
             "size": $BYTES,
-            "notes": "Kayıtlı kişiler için izin akışı, arama tanılama, kısa ömürlü Android servisinden bağımsız arama kartı ve daha dayanıklı sunucu sorgusu düzeltildi."
+            "notes": "Gelen arama kartı numara eşleşmeden açılır; KVM sorgusu tamamlanınca kimlik bilgileriyle güncellenir. Yetkili rehberde eşleşmeyen veya bağlantı hatası olan numaralarda açıklayıcı kart gösterilir."
           }
           EOF
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ELAK-Arayan-Tanima-v1.2.4
+          name: ELAK-Arayan-Tanima-v1.2.5
           path: out/
           retention-days: 30

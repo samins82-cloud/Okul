@@ -1,15 +1,21 @@
-# ELAK Arayan Tanıma 1.2.4
+# ELAK Arayan Tanıma 1.2.5
 
 Android yardımcı uygulama; gelen GSM aramasını Android arayan kimliği rolü aracılığıyla algılar ve yalnız yetkili ELAK KVM verisiyle eşleştirir.
 
-## v1.2.4 düzeltmeleri
+## v1.2.5 düzeltmeleri
+- Numara telefonda kayıtlı olmasa da arama algılandığında hızlı bir "ELAK Rehber Sorgulanıyor" kartı açılır.
+- ELAK KVM’de eşleşme varsa mevcut veli/öğrenci/personel kartıyla değiştirilir; eşleşme yoksa "Numara Tanımlanamadı" kartı görünür.
+- Ağ hatası, eşleşmemiş cihaz veya sistemde bulunmayan numara için kullanıcıya ayrı bir sonuç gösterilir.
+- Bu sürüm, Android üreticilerinin ekran üstü gösterim sınırlamalarını ortadan kaldıramaz. Kullanıcı izinlerini yine etkinleştirmelidir.
+- Kod, telefonun yerel kişiler listesine göre filtre uygulamaz; kimlik bilgileri yetkili ELAK/KVM sunucu kayıtlarından sağlanır.
+
 - `READ_CONTACTS` izni kullanıcıya ayrı bir düğmeyle sorulur. Bu izin verilmeden Android, telefona kayıtlı kişilerden gelen çağrıları CallScreeningService'e iletmeyebilir.
 - Gelen arama kartı, `CallScreeningService.onDestroy()` çağrıldığında kaldırılmaz; en fazla 30 saniye veya kullanıcı kapatana kadar görünür.
 - Eski aramanın gecikmiş kaldırma görevi yeni arama kartını silemez.
 - Sunucu bağlantı/okuma zaman aşımı sırasıyla 2,5 / 3,5 saniyeye çıkarıldı; telefon görüşmesinin kendisi ağ yanıtını beklemez.
 - Yerel "Son Gelen Arama Tanılaması": arama algılandı mı, cihaz eşli mi, sunucu hata kodu verdi mi, KVM eşleşmesi var mı, kart gösterildi mi.
 - Hata günlüğüne telefon numarası, token veya öğrenci/veli bilgisi yazılmaz.
-- Derleme `versionCode=8`, `versionName=1.2.4`; mevcut CI imzalama önbelleği korunmuştur.
+- Derleme `versionCode=9`, `versionName=1.2.5`; mevcut CI imzalama önbelleği korunmuştur.
 
 ## Kurulum / Deneme
 1. GitHub Actions `Build ELAK Caller APK` iş akışının başarılı olduğundan ve APK sertifikasının önceki kurulu sürümle aynı olduğundan emin olun.
