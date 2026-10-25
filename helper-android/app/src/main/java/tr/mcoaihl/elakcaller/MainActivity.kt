@@ -473,7 +473,7 @@ class MainActivity : Activity() {
                         "device_name",
                         "${Build.MANUFACTURER} ${Build.MODEL}"
                     )
-                    .put("app_version", packageManager.getPackageInfo(packageName, 0).versionName ?: "1.2.4")
+                    .put("app_version", packageManager.getPackageInfo(packageName, 0).versionName ?: "1.2.5")
                     .toString()
 
                 val connection = (url.openConnection() as HttpURLConnection).apply {
@@ -484,7 +484,7 @@ class MainActivity : Activity() {
                     useCaches = false
                     setRequestProperty("Content-Type", "application/json")
                     setRequestProperty("Accept", "application/json")
-                    setRequestProperty("User-Agent", "ELAK-Caller/1.2.4")
+                    setRequestProperty("User-Agent", "ELAK-Caller/1.2.5")
                 }
 
                 try {
@@ -569,7 +569,7 @@ class MainActivity : Activity() {
                 useCaches = false
                 setRequestProperty("Authorization", "Bearer $token")
                 setRequestProperty("Accept", "application/json")
-                setRequestProperty("User-Agent", "ELAK-Caller/1.2.4")
+                setRequestProperty("User-Agent", "ELAK-Caller/1.2.5")
             }
 
             try {
@@ -640,7 +640,7 @@ class MainActivity : Activity() {
                 setRequestProperty("Authorization", "Bearer $token")
                 setRequestProperty("Content-Type", "application/json")
                 setRequestProperty("Accept", "application/json")
-                setRequestProperty("User-Agent", "ELAK-Caller/1.2.4")
+                setRequestProperty("User-Agent", "ELAK-Caller/1.2.5")
             }
 
             var serverRevoked = false
