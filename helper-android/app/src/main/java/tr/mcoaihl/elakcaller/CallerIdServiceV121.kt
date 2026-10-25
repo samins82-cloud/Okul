@@ -64,6 +64,9 @@ class CallerIdServiceV121 : CallScreeningService() {
             return
         }
         recordCallStatus("Gelen arama algılandı; ELAK sorgulanıyor")
+        // Android kısa ömürlü arama servisini kapatsa bile kullanıcı ilk kartı hemen görsün.
+        // Numaranın telefonda kayıtlı olması gerekmez: eşleştirme yalnız ELAK/KVM üzerindendir.
+        showCaller(statusCard(number, "ELAK Rehber Sorgulanıyor", "Gelen numara kontrol ediliyor", "pending"), BASE_URL, "")
 
         thread(name = "elak-caller-lookup") {
             try {
@@ -72,12 +75,14 @@ class CallerIdServiceV121 : CallScreeningService() {
                 val base = prefs.getString("base_url", BASE_URL).orEmpty().ifBlank { BASE_URL }
                 if (token.isBlank()) {
                     recordCallStatus("Cihaz eşleştirilmemiş")
+                    showCaller(statusCard(number, "Cihaz Eşleştirilmemiş", "ELAK Arayan Tanıma uygulamasını kuruma bağlayın", "unpaired"), base, token)
                     return@thread
                 }
 
                 val result = lookup(base, number, token)
                 if (result == null) {
                     recordCallStatus("Sunucudan eşleştirme yanıtı alınamadı")
+                    showCaller(statusCard(number, "Rehber Sorgulanamadı", "Sunucudan yanıt alınamadı", "unavailable"), base, token)
                     return@thread
                 }
                 if (result.optJSONObject("best") != null) {
@@ -85,13 +90,23 @@ class CallerIdServiceV121 : CallScreeningService() {
                     showCaller(result, base, token)
                 } else {
                     recordCallStatus("Arama algılandı; bu numara yetkili rehberde bulunamadı")
+                    showCaller(statusCard(number, "Numara Tanımlanamadı", "ELAK yetkili rehberinde eşleşen kayıt bulunamadı", "unmatched"), base, token)
                 }
             } catch (e: Exception) {
                 // Kişisel telefon numarası ve token asla hata günlüğüne yazılmaz.
                 recordCallStatus("Arama sorgusunda hata: ${e.javaClass.simpleName}")
+                showCaller(statusCard(number, "Rehber Sorgulanamadı", "Arama sırasında sunucu yanıtı alınamadı", "unavailable"), BASE_URL, "")
             }
         }
     }
+
+    private fun statusCard(number: String, name: String, detail: String, type: String): JSONObject =
+        JSONObject()
+            .put("type", type)
+            .put("name", name)
+            .put("detail", detail)
+            .put("phone", number)
+            .put("students", JSONArray())
 
     private fun recordCallStatus(message: String) {
         getSharedPreferences("elak_caller", Context.MODE_PRIVATE).edit()
@@ -113,7 +128,7 @@ class CallerIdServiceV121 : CallScreeningService() {
             useCaches = false
             setRequestProperty("Accept", "application/json")
             setRequestProperty("Authorization", "Bearer $token")
-            setRequestProperty("User-Agent", "ELAK-Caller/1.2.4")
+            setRequestProperty("User-Agent", "ELAK-Caller/1.2.5")
         }
 
         return try {
@@ -134,8 +149,9 @@ class CallerIdServiceV121 : CallScreeningService() {
         if (Settings.canDrawOverlays(this)) {
             showOverlay(best, base, token)
         } else {
-            recordCallStatus("Numara eşleşti; ekran üstü izni kapalı, bildirim denendi")
-            showNotification(best)
+            recordCallStatus("Ekran üstü izni kapalı; bildirim denendi")
+            try { showNotification(best) }
+            catch (e: Exception) { recordCallStatus("Bildirim gösterilemedi: ${e.javaClass.simpleName}") }
         }
     }
 
@@ -156,6 +172,10 @@ class CallerIdServiceV121 : CallScreeningService() {
         "guardian" -> "Veli"
         "student" -> "Öğrenci"
         "staff" -> "Personel"
+        "pending" -> "Arama Tanılama"
+        "unmatched" -> "Kayıt Bulunamadı"
+        "unavailable" -> "Bağlantı Sorunu"
+        "unpaired" -> "Kurulum Gerekli"
         else -> "Kurum Rehberi"
     }
 
@@ -503,7 +523,14 @@ class CallerIdServiceV121 : CallScreeningService() {
 
                 overlayView = outer
                 windowManager.addView(outer, params)
-                recordCallStatus("Arama kartı Android ekranında gösterildi")
+                val cardStatus = when (best.optString("type")) {
+                    "pending" -> "Gelen arama algılandı; kart açıldı, ELAK sorgulanıyor"
+                    "unmatched" -> "Arama kartı gösterildi; yetkili rehberde numara eşleşmedi"
+                    "unavailable" -> "Arama kartı gösterildi; sunucu yanıtı alınamadı"
+                    "unpaired" -> "Arama kartı gösterildi; cihaz eşleştirilmemiş"
+                    else -> "Numara eşleşti; arama kartı Android ekranında gösterildi"
+                }
+                recordCallStatus(cardStatus)
                 // Önceki aramanın kapanma işi yeni aramanın kartını kapatmasın.
                 mainHandler.postDelayed({
                     if (overlayView === outer) removeOverlayNow()
@@ -526,7 +553,8 @@ class CallerIdServiceV121 : CallScreeningService() {
                 }
             } catch (e: Exception) {
                 recordCallStatus("Ekran kartı açılamadı: ${e.javaClass.simpleName}; bildirim denendi")
-                showNotification(best)
+                try { showNotification(best) }
+                catch (_: Exception) { recordCallStatus("Kart ve bildirim gösterilemedi: ${e.javaClass.simpleName}") }
             }
         }
     }
@@ -547,7 +575,7 @@ class CallerIdServiceV121 : CallScreeningService() {
             useCaches = true
             setRequestProperty("Authorization", "Bearer $token")
             setRequestProperty("Accept", "image/*")
-            setRequestProperty("User-Agent", "ELAK-Caller/1.2.4")
+            setRequestProperty("User-Agent", "ELAK-Caller/1.2.5")
         }
 
         return try {
